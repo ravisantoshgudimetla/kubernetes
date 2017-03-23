@@ -553,7 +553,11 @@ func describePod(pod *api.Pod, events *api.EventList) (string, error) {
 			}
 		}
 		describeVolumes(pod.Spec.Volumes, w, "")
-		w.Write(LEVEL_0, "QoS Class:\t%s\n", pod.Status.QOSClass)
+		if pod.Status.QOSClass != "" {
+			w.Write(LEVEL_0, "QoS Class:\t%s\n", pod.Status.QOSClass)
+		} else {
+			w.Write(LEVEL_0, "QoS Class:\t%s\n", qos.InternalGetPodQOS(pod))
+		}
 		printLabelsMultiline(w, "Node-Selectors", pod.Spec.NodeSelector)
 		printPodTolerationsMultiline(w, "Tolerations", pod.Spec.Tolerations)
 		if events != nil {
@@ -2440,6 +2444,10 @@ func (dd *DeploymentDescriber) Describe(namespace, name string, describerSetting
 				newRSs = append(newRSs, newRS)
 			}
 			w.Write(LEVEL_0, "NewReplicaSet:\t%s\n", printReplicaSetsByLabels(newRSs))
+		}
+		overlapWith := d.Annotations[deploymentutil.OverlapAnnotation]
+		if len(overlapWith) > 0 {
+			w.Write(LEVEL_0, "!!!WARNING!!! This deployment has overlapping label selector with deployment %q and won't behave as expected. Please fix it before continuing.\n", overlapWith)
 		}
 		if describerSettings.ShowEvents {
 			events, err := dd.Core().Events(namespace).Search(api.Scheme, d)

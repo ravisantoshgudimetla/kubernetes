@@ -672,10 +672,12 @@ __EOF__
   "apiVersion": "v1",
   "metadata": {
     "name": "node-v1-test",
-    "annotations": {"a":"b"}
+    "annotations": {"a":"b"},
+    "resourceVersion": "0"
   }
 }
 __EOF__
+
   # Post-condition: the node command succeeds
   kube::test::get_object_assert "node node-v1-test" "{{.metadata.annotations.a}}" 'b'
   kubectl delete node node-v1-test "${kube_flags[@]}"

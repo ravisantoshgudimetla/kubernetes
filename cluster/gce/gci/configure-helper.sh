@@ -216,6 +216,10 @@ function create-node-pki {
     KUBELET_KEY_PATH="${pki_dir}/kubelet.key"
     echo "${KUBELET_KEY}" | base64 --decode > "${KUBELET_KEY_PATH}"
   fi
+
+  # TODO(mikedanese): remove this when we don't support downgrading to versions
+  # < 1.6.
+  ln -sf "${CA_CERT_BUNDLE_PATH}" /etc/srv/kubernetes/ca.crt
 }
 
 function create-master-pki {
@@ -265,6 +269,11 @@ function create-master-pki {
 
   SERVICEACCOUNT_KEY_PATH="${pki_dir}/serviceaccount.key"
   echo "${SERVICEACCOUNT_KEY}" | base64 --decode > "${SERVICEACCOUNT_KEY_PATH}"
+
+  # TODO(mikedanese): remove this when we don't support downgrading to versions
+  # < 1.6.
+  ln -sf "${APISERVER_SERVER_KEY_PATH}" /etc/srv/kubernetes/server.key
+  ln -sf "${APISERVER_SERVER_CERT_PATH}" /etc/srv/kubernetes/server.cert
 }
 
 # After the first boot and on upgrade, these files exist on the master-pd
@@ -675,7 +684,6 @@ function start-kubelet {
     if [[ "${REGISTER_MASTER_KUBELET:-false}" == "true" ]]; then
       flags+=" --api-servers=https://${KUBELET_APISERVER}"
       flags+=" --register-schedulable=false"
-      flags+=" --register-with-taints=node.alpha.kubernetes.io/ismaster=:NoSchedule"
     else
       # Standalone mode (not widely used?)
       flags+=" --pod-cidr=${MASTER_IP_RANGE}"
@@ -1099,9 +1107,9 @@ function start-kube-apiserver {
 
   # Load existing ABAC policy files written by versions < 1.6 of this script
   # TODO: only default to this legacy path when in upgrade mode
-  ABAC_AUTHZ_FILE="${ABAC_AUTHZ_FILE:-/etc/srv/kubernetes/abac-authz-policy.jsonl}"
-  if [[ -n "${ABAC_AUTHZ_FILE:-}" && -e "${ABAC_AUTHZ_FILE}" ]]; then
-    params+=" --authorization-policy-file=${ABAC_AUTHZ_FILE}"
+  local abac_authorization_file="${ABAC_AUTHZ_FILE:-/etc/srv/kubernetes/abac-authz-policy.jsonl}"
+  if [[ -n "${abac_authorization_file:-}" && -e "${abac_authorization_file}" ]]; then
+    params+=" --authorization-policy-file=${abac_authorization_file}"
     authorization_mode+=",ABAC"
   fi
   local webhook_config_mount=""

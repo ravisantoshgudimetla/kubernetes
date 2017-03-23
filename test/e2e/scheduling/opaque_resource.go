@@ -14,24 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package e2e
+package scheduling
 
 import (
 	"fmt"
 	"strings"
-	"sync"
-	"time"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/util/system"
+	"k8s.io/kubernetes/test/e2e/common"
 	"k8s.io/kubernetes/test/e2e/framework"
 
 	. "github.com/onsi/ginkgo"
@@ -75,7 +69,7 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 		By("Creating a vanilla pod")
 		requests := v1.ResourceList{v1.ResourceCPU: resource.MustParse("0.1")}
 		limits := v1.ResourceList{v1.ResourceCPU: resource.MustParse("0.2")}
-		pod := newTestPod(f, "without-oir", requests, limits)
+		pod := f.NewTestPod("without-oir", requests, limits)
 
 		By("Observing an event that indicates the pod was scheduled")
 		action := func() error {
@@ -84,8 +78,8 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 		}
 		// Here we don't check for the bound node name since it can land on
 		// any one (this pod doesn't require any of the opaque resource.)
-		predicate := scheduleSuccess(pod.Name, "")
-		success, err := observeEventAfterAction(f, predicate, action)
+		predicate := scheduleSuccessEvent(pod.Name, "")
+		success, err := common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 	})
@@ -102,15 +96,15 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 			v1.ResourceCPU: resource.MustParse("0.2"),
 			opaqueResName:  resource.MustParse("2"),
 		}
-		pod := newTestPod(f, "min-oir", requests, limits)
+		pod := f.NewTestPod("min-oir", requests, limits)
 
 		By("Observing an event that indicates the pod was scheduled")
 		action := func() error {
 			_, err := f.ClientSet.Core().Pods(f.Namespace.Name).Create(pod)
 			return err
 		}
-		predicate := scheduleSuccess(pod.Name, node.Name)
-		success, err := observeEventAfterAction(f, predicate, action)
+		predicate := scheduleSuccessEvent(pod.Name, node.Name)
+		success, err := common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 	})
@@ -124,11 +118,11 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 
 		By("Observing an event that indicates the pod was not scheduled")
 		action := func() error {
-			_, err := f.ClientSet.Core().Pods(f.Namespace.Name).Create(newTestPod(f, "over-max-oir", requests, limits))
+			_, err := f.ClientSet.Core().Pods(f.Namespace.Name).Create(f.NewTestPod("over-max-oir", requests, limits))
 			return err
 		}
-		predicate := scheduleFailure("over-max-oir")
-		success, err := observeEventAfterAction(f, predicate, action)
+		predicate := scheduleFailureEvent("over-max-oir")
+		success, err := common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 	})
@@ -172,8 +166,8 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 			_, err := f.ClientSet.Core().Pods(f.Namespace.Name).Create(pod)
 			return err
 		}
-		predicate := scheduleSuccess(pod.Name, node.Name)
-		success, err := observeEventAfterAction(f, predicate, action)
+		predicate := scheduleSuccessEvent(pod.Name, node.Name)
+		success, err := common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 
@@ -212,8 +206,8 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 			_, err = f.ClientSet.Core().Pods(f.Namespace.Name).Create(pod)
 			return err
 		}
-		predicate = scheduleFailure(pod.Name)
-		success, err = observeEventAfterAction(f, predicate, action)
+		predicate = scheduleFailureEvent(pod.Name)
+		success, err = common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 	})
@@ -230,16 +224,16 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 			v1.ResourceCPU: resource.MustParse("0.2"),
 			opaqueResName:  resource.MustParse("3"),
 		}
-		pod1 := newTestPod(f, "oir-1", requests, limits)
-		pod2 := newTestPod(f, "oir-2", requests, limits)
+		pod1 := f.NewTestPod("oir-1", requests, limits)
+		pod2 := f.NewTestPod("oir-2", requests, limits)
 
 		By("Observing an event that indicates one pod was scheduled")
 		action := func() error {
 			_, err := f.ClientSet.Core().Pods(f.Namespace.Name).Create(pod1)
 			return err
 		}
-		predicate := scheduleSuccess(pod1.Name, node.Name)
-		success, err := observeEventAfterAction(f, predicate, action)
+		predicate := scheduleSuccessEvent(pod1.Name, node.Name)
+		success, err := common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 
@@ -248,8 +242,8 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 			_, err := f.ClientSet.Core().Pods(f.Namespace.Name).Create(pod2)
 			return err
 		}
-		predicate = scheduleFailure(pod2.Name)
-		success, err = observeEventAfterAction(f, predicate, action)
+		predicate = scheduleFailureEvent(pod2.Name)
+		success, err = common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 
@@ -258,8 +252,8 @@ var _ = framework.KubeDescribe("Opaque resources [Feature:OpaqueResources]", fun
 			err := f.ClientSet.Core().Pods(f.Namespace.Name).Delete(pod1.Name, nil)
 			return err
 		}
-		predicate = scheduleSuccess(pod2.Name, node.Name)
-		success, err = observeEventAfterAction(f, predicate, action)
+		predicate = scheduleSuccessEvent(pod2.Name, node.Name)
+		success, err = common.ObserveEventAfterAction(f, predicate, action)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(success).To(Equal(true))
 	})
@@ -279,7 +273,7 @@ func addOpaqueResource(f *framework.Framework, nodeName string, opaqueResName v1
 		return foundCap && capacity.MilliValue() == int64(5000) &&
 			foundAlloc && allocatable.MilliValue() == int64(5000)
 	}
-	success, err := observeNodeUpdateAfterAction(f, nodeName, predicate, action)
+	success, err := common.ObserveNodeUpdateAfterAction(f, nodeName, predicate, action)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(success).To(Equal(true))
 }
@@ -298,7 +292,7 @@ func removeOpaqueResource(f *framework.Framework, nodeName string, opaqueResName
 		By(fmt.Sprintf("Node [%s] has OIR capacity: [%t] (%s), has OIR allocatable: [%t] (%s)", n.Name, foundCap, capacity.String(), foundAlloc, allocatable.String()))
 		return (!foundCap || capacity.IsZero()) && (!foundAlloc || allocatable.IsZero())
 	}
-	success, err := observeNodeUpdateAfterAction(f, nodeName, predicate, action)
+	success, err := common.ObserveNodeUpdateAfterAction(f, nodeName, predicate, action)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(success).To(Equal(true))
 }
@@ -307,130 +301,4 @@ func escapeForJSONPatch(resName v1.ResourceName) string {
 	// Escape forward slashes in the resource name per the JSON Pointer spec.
 	// See https://tools.ietf.org/html/rfc6901#section-3
 	return strings.Replace(string(resName), "/", "~1", -1)
-}
-
-// Returns true if a node update matching the predicate was emitted from the
-// system after performing the supplied action.
-func observeNodeUpdateAfterAction(f *framework.Framework, nodeName string, nodePredicate func(*v1.Node) bool, action func() error) (bool, error) {
-	observedMatchingNode := false
-	nodeSelector := fields.OneTermEqualSelector("metadata.name", nodeName)
-	informerStartedChan := make(chan struct{})
-	var informerStartedGuard sync.Once
-
-	_, controller := cache.NewInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				options.FieldSelector = nodeSelector.String()
-				ls, err := f.ClientSet.Core().Nodes().List(options)
-				return ls, err
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				options.FieldSelector = nodeSelector.String()
-				w, err := f.ClientSet.Core().Nodes().Watch(options)
-				// Signal parent goroutine that watching has begun.
-				informerStartedGuard.Do(func() { close(informerStartedChan) })
-				return w, err
-			},
-		},
-		&v1.Node{},
-		0,
-		cache.ResourceEventHandlerFuncs{
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				n, ok := newObj.(*v1.Node)
-				Expect(ok).To(Equal(true))
-				if nodePredicate(n) {
-					observedMatchingNode = true
-				}
-			},
-		},
-	)
-
-	// Start the informer and block this goroutine waiting for the started signal.
-	informerStopChan := make(chan struct{})
-	defer func() { close(informerStopChan) }()
-	go controller.Run(informerStopChan)
-	<-informerStartedChan
-
-	// Invoke the action function.
-	err := action()
-	if err != nil {
-		return false, err
-	}
-
-	// Poll whether the informer has found a matching node update with a timeout.
-	// Wait up 2 minutes polling every second.
-	timeout := 2 * time.Minute
-	interval := 1 * time.Second
-	err = wait.Poll(interval, timeout, func() (bool, error) {
-		return observedMatchingNode, nil
-	})
-	return err == nil, err
-}
-
-// Returns true if an event matching the predicate was emitted from the system
-// after performing the supplied action.
-func observeEventAfterAction(f *framework.Framework, eventPredicate func(*v1.Event) bool, action func() error) (bool, error) {
-	observedMatchingEvent := false
-
-	// Create an informer to list/watch events from the test framework namespace.
-	_, controller := cache.NewInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				ls, err := f.ClientSet.Core().Events(f.Namespace.Name).List(options)
-				return ls, err
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				w, err := f.ClientSet.Core().Events(f.Namespace.Name).Watch(options)
-				return w, err
-			},
-		},
-		&v1.Event{},
-		0,
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				e, ok := obj.(*v1.Event)
-				By(fmt.Sprintf("Considering event: \nType = [%s], Name = [%s], Reason = [%s], Message = [%s]", e.Type, e.Name, e.Reason, e.Message))
-				Expect(ok).To(Equal(true))
-				if ok && eventPredicate(e) {
-					observedMatchingEvent = true
-				}
-			},
-		},
-	)
-
-	informerStopChan := make(chan struct{})
-	defer func() { close(informerStopChan) }()
-	go controller.Run(informerStopChan)
-
-	// Invoke the action function.
-	err := action()
-	if err != nil {
-		return false, err
-	}
-
-	// Poll whether the informer has found a matching event with a timeout.
-	// Wait up 2 minutes polling every second.
-	timeout := 2 * time.Minute
-	interval := 1 * time.Second
-	err = wait.Poll(interval, timeout, func() (bool, error) {
-		return observedMatchingEvent, nil
-	})
-	return err == nil, err
-}
-
-func scheduleSuccess(podName, nodeName string) func(*v1.Event) bool {
-	return func(e *v1.Event) bool {
-		return e.Type == v1.EventTypeNormal &&
-			e.Reason == "Scheduled" &&
-			strings.HasPrefix(e.Name, podName) &&
-			strings.Contains(e.Message, fmt.Sprintf("Successfully assigned %v to %v", podName, nodeName))
-	}
-}
-
-func scheduleFailure(podName string) func(*v1.Event) bool {
-	return func(e *v1.Event) bool {
-		return strings.HasPrefix(e.Name, podName) &&
-			e.Type == "Warning" &&
-			e.Reason == "FailedScheduling"
-	}
 }
