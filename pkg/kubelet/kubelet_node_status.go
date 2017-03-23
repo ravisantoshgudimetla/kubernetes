@@ -41,6 +41,7 @@ import (
 	nodeutil "k8s.io/kubernetes/pkg/util/node"
 	"k8s.io/kubernetes/pkg/version"
 	"k8s.io/kubernetes/pkg/volume/util/volumehelper"
+	"reflect"
 )
 
 const (
@@ -132,10 +133,18 @@ func (kl *Kubelet) tryRegisterWithApiServer(node *v1.Node) bool {
 		// annotation.
 		requiresUpdate := kl.reconcileCMADAnnotationWithExistingNode(node, existingNode)
 		if requiresUpdate {
-			if _, err := nodeutil.PatchNodeStatus(kl.kubeClient, types.NodeName(kl.nodeName),
-				originalNode, existingNode); err != nil {
+			_, err := nodeutil.PatchNodeStatus(kl.kubeClient, types.NodeName(kl.nodeName),
+				originalNode, existingNode)
+			if err != nil {
 				glog.Errorf("Unable to reconcile node %q with API server: error updating node: %v", kl.nodeName, err)
 				return false
+			}
+			if !(reflect.DeepEqual(node.Spec.Taints, existingNode.Spec.Taints)) {
+				if err := kl.kubeClient.Core().Nodes().Delete(node.Name, nil); err != nil {
+					glog.Errorf("Unable to register node %q with API server: error deleting old node: %v", kl.nodeName, err)
+					return true
+
+				}
 			}
 		}
 
@@ -163,7 +172,6 @@ func (kl *Kubelet) reconcileCMADAnnotationWithExistingNode(node, existingNode *v
 		existingCMAAnnotation    = existingNode.Annotations[volumehelper.ControllerManagedAttachAnnotation]
 		newCMAAnnotation, newSet = node.Annotations[volumehelper.ControllerManagedAttachAnnotation]
 	)
-
 	if newCMAAnnotation == existingCMAAnnotation {
 		return false
 	}
@@ -174,6 +182,7 @@ func (kl *Kubelet) reconcileCMADAnnotationWithExistingNode(node, existingNode *v
 	if !newSet {
 		glog.Info("Controller attach-detach setting changed to false; updating existing Node")
 		delete(existingNode.Annotations, volumehelper.ControllerManagedAttachAnnotation)
+
 	} else {
 		glog.Info("Controller attach-detach setting changed to true; updating existing Node")
 		if existingNode.Annotations == nil {
