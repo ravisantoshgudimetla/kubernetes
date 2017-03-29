@@ -52,7 +52,7 @@ type claimDefaulterPlugin struct {
 }
 
 var _ admission.Interface = &claimDefaulterPlugin{}
-var _ = kubeapiserveradmission.WantsInformerFactory(&claimDefaulterPlugin{})
+var _ = kubeapiserveradmission.WantsInternalKubeInformerFactory(&claimDefaulterPlugin{})
 
 // newPlugin creates a new admission plugin.
 func newPlugin() *claimDefaulterPlugin {
@@ -61,13 +61,13 @@ func newPlugin() *claimDefaulterPlugin {
 	}
 }
 
-func (a *claimDefaulterPlugin) SetInformerFactory(f informers.SharedInformerFactory) {
+func (a *claimDefaulterPlugin) SetInternalKubeInformerFactory(f informers.SharedInformerFactory) {
 	informer := f.Storage().InternalVersion().StorageClasses()
 	a.lister = informer.Lister()
 	a.SetReadyFunc(informer.Informer().HasSynced)
 }
 
-// Validate ensures an authorizer is set.
+// Validate ensures lister is set.
 func (a *claimDefaulterPlugin) Validate() error {
 	if a.lister == nil {
 		return fmt.Errorf("missing lister")

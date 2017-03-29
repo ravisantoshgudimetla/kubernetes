@@ -47,7 +47,6 @@ import (
 	"k8s.io/kubernetes/pkg/capabilities"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/security/apparmor"
-	"k8s.io/kubernetes/pkg/volume"
 )
 
 // TODO: delete this global variable when we enable the validation of common
@@ -64,11 +63,6 @@ var volumeModeErrorMsg string = "must be a number between 0 and 0777 (octal), bo
 
 // BannedOwners is a black list of object that are not allowed to be owners.
 var BannedOwners = genericvalidation.BannedOwners
-var volumePlugins []volume.VolumePlugin
-
-func init() {
-	volumePlugins = probeVolumePlugins()
-}
 
 // ValidateHasLabel requires that metav1.ObjectMeta has a Label with key and expectedValue
 func ValidateHasLabel(meta metav1.ObjectMeta, fldPath *field.Path, key, expectedValue string) field.ErrorList {
@@ -111,6 +105,14 @@ func ValidateDNS1123Subdomain(value string, fldPath *field.Path) field.ErrorList
 func ValidatePodSpecificAnnotations(annotations map[string]string, spec *api.PodSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
+	if annotations[api.AffinityAnnotationKey] != "" {
+		allErrs = append(allErrs, ValidateAffinityInPodAnnotations(annotations, fldPath)...)
+	}
+
+	if annotations[api.TolerationsAnnotationKey] != "" {
+		allErrs = append(allErrs, ValidateTolerationsInPodAnnotations(annotations, fldPath)...)
+	}
+
 	// TODO: remove these after we EOL the annotations.
 	if hostname, exists := annotations[utilpod.PodHostnameAnnotation]; exists {
 		allErrs = append(allErrs, ValidateDNS1123Label(hostname, fldPath.Key(utilpod.PodHostnameAnnotation))...)
@@ -139,6 +141,40 @@ func ValidatePodSpecificAnnotations(annotations map[string]string, spec *api.Pod
 		allErrs = append(allErrs, field.Invalid(fldPath.Key(api.UnsafeSysctlsPodAnnotationKey), strings.Join(inBoth, ", "), "can not be safe and unsafe"))
 	}
 
+	return allErrs
+}
+
+// ValidateTolerationsInPodAnnotations tests that the serialized tolerations in Pod.Annotations has valid data
+func ValidateTolerationsInPodAnnotations(annotations map[string]string, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	tolerations, err := api.GetTolerationsFromPodAnnotations(annotations)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fldPath, api.TolerationsAnnotationKey, err.Error()))
+		return allErrs
+	}
+
+	if len(tolerations) > 0 {
+		allErrs = append(allErrs, validateTolerations(tolerations, fldPath.Child(api.TolerationsAnnotationKey))...)
+	}
+
+	return allErrs
+}
+
+// ValidateAffinityInPodAnnotations tests that the serialized Affinity in Pod.Annotations has valid data
+func ValidateAffinityInPodAnnotations(annotations map[string]string, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	affinity, err := api.GetAffinityFromPodAnnotations(annotations)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fldPath, api.AffinityAnnotationKey, err.Error()))
+		return allErrs
+	}
+	if affinity == nil {
+		return allErrs
+	}
+
+	allErrs = append(allErrs, validateAffinity(affinity, fldPath.Child("affinity"))...)
 	return allErrs
 }
 
@@ -1061,20 +1097,6 @@ func ValidatePersistentVolume(pv *api.PersistentVolume) field.ErrorList {
 	if len(string(pv.Spec.PersistentVolumeReclaimPolicy)) > 0 {
 		if !supportedReclaimPolicy.Has(string(pv.Spec.PersistentVolumeReclaimPolicy)) {
 			allErrs = append(allErrs, field.NotSupported(specPath.Child("persistentVolumeReclaimPolicy"), pv.Spec.PersistentVolumeReclaimPolicy, supportedReclaimPolicy.List()))
-		}
-	}
-
-	volumePlugin := findPluginBySpec(volumePlugins, pv)
-	mountOptions := volume.MountOptionFromApiPV(pv)
-
-	metaField := field.NewPath("metadata")
-	if volumePlugin == nil && len(mountOptions) > 0 {
-		allErrs = append(allErrs, field.Forbidden(metaField.Child("annotations", volume.MountOptionAnnotation), "may not specify mount options for this volume type"))
-	}
-
-	if volumePlugin != nil {
-		if !volumePlugin.SupportsMountOption() && len(mountOptions) > 0 {
-			allErrs = append(allErrs, field.Forbidden(metaField.Child("annotations", volume.MountOptionAnnotation), "may not specify mount options for this volume type"))
 		}
 	}
 
@@ -2927,6 +2949,23 @@ func ValidateReadOnlyPersistentDisks(volumes []api.Volume, fldPath *field.Path) 
 	return allErrs
 }
 
+// ValidateTaintsInNodeAnnotations tests that the serialized taints in Node.Annotations has valid data
+func ValidateTaintsInNodeAnnotations(annotations map[string]string, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	taints, err := api.GetTaintsFromNodeAnnotations(annotations)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fldPath, api.TaintsAnnotationKey, err.Error()))
+		return allErrs
+	}
+
+	if len(taints) > 0 {
+		allErrs = append(allErrs, validateNodeTaints(taints, fldPath.Child(api.TaintsAnnotationKey))...)
+	}
+
+	return allErrs
+}
+
 // validateNodeTaints tests if given taints have valid data.
 func validateNodeTaints(taints []api.Taint, fldPath *field.Path) field.ErrorList {
 	allErrors := field.ErrorList{}
@@ -2963,6 +3002,11 @@ func validateNodeTaints(taints []api.Taint, fldPath *field.Path) field.ErrorList
 
 func ValidateNodeSpecificAnnotations(annotations map[string]string, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+
+	if annotations[api.TaintsAnnotationKey] != "" {
+		allErrs = append(allErrs, ValidateTaintsInNodeAnnotations(annotations, fldPath)...)
+	}
+
 	if annotations[api.PreferAvoidPodsAnnotationKey] != "" {
 		allErrs = append(allErrs, ValidateAvoidPodsInNodeAnnotations(annotations, fldPath)...)
 	}

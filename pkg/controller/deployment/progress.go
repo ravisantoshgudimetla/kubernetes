@@ -23,6 +23,7 @@ import (
 
 	"github.com/golang/glog"
 
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/api/v1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	"k8s.io/kubernetes/pkg/controller/deployment/util"
@@ -33,12 +34,12 @@ import (
 // and when new pods scale up or old pods scale down. Progress is not estimated for paused
 // deployments or when users don't really care about it ie. progressDeadlineSeconds is not
 // specified.
-func (dc *DeploymentController) hasFailed(d *extensions.Deployment) (bool, error) {
+func (dc *DeploymentController) hasFailed(d *extensions.Deployment, rsList []*extensions.ReplicaSet, podMap map[types.UID]*v1.PodList) (bool, error) {
 	if d.Spec.ProgressDeadlineSeconds == nil || d.Spec.RollbackTo != nil || d.Spec.Paused {
 		return false, nil
 	}
 
-	newRS, oldRSs, err := dc.getAllReplicaSetsAndSyncRevision(d, false)
+	newRS, oldRSs, err := dc.getAllReplicaSetsAndSyncRevision(d, rsList, podMap, false)
 	if err != nil {
 		return false, err
 	}
@@ -232,6 +233,8 @@ func (dc *DeploymentController) requeueStuckDeployment(d *extensions.Deployment,
 		return time.Duration(0)
 	}
 	glog.V(4).Infof("Queueing up deployment %q for a progress check after %ds", d.Name, int(after.Seconds()))
-	dc.enqueueAfter(d, after)
+	// Add a second to avoid milliseconds skew in AddAfter.
+	// See https://github.com/kubernetes/kubernetes/issues/39785#issuecomment-279959133 for more info.
+	dc.enqueueAfter(d, after+time.Second)
 	return after
 }

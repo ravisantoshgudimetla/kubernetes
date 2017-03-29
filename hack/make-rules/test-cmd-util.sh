@@ -223,6 +223,48 @@ setup() {
   kube::log::status "Setup complete"
 }
 
+########################################################
+# Kubectl version (--short, --client, --output) #
+########################################################
+run_kubectl_version_tests() {
+  kube::log::status "Testing kubectl version"
+  TEMP="${KUBE_TEMP}"
+
+  # create version files, one for the client, one for the server.
+  # these are the files we will use to ensure that the remainder output is correct
+  kube::test::version::object_to_file "Client" "" "${TEMP}/client_version_test"
+  kube::test::version::object_to_file "Server" "" "${TEMP}/server_version_test"
+
+  kube::log::status "Testing kubectl version: check client only output matches expected output"
+  kube::test::version::object_to_file "Client" "--client" "${TEMP}/client_only_version_test"
+  kube::test::version::object_to_file "Client" "--client" "${TEMP}/server_client_only_version_test"
+  kube::test::version::diff_assert "${TEMP}/client_version_test" "eq" "${TEMP}/client_only_version_test" "the flag '--client' shows correct client info"
+  kube::test::version::diff_assert "${TEMP}/server_version_test" "ne" "${TEMP}/server_client_only_version_test" "the flag '--client' correctly has no server version info"
+  
+  kube::log::status "Testing kubectl version: verify json output"
+  kube::test::version::json_client_server_object_to_file "" "clientVersion" "${TEMP}/client_json_version_test"
+  kube::test::version::json_client_server_object_to_file "" "serverVersion" "${TEMP}/server_json_version_test"
+  kube::test::version::diff_assert "${TEMP}/client_version_test" "eq" "${TEMP}/client_json_version_test" "--output json has correct client info"
+  kube::test::version::diff_assert "${TEMP}/server_version_test" "eq" "${TEMP}/server_json_version_test" "--output json has correct server info"
+
+  kube::log::status "Testing kubectl version: verify json output using additional --client flag does not contain serverVersion"
+  kube::test::version::json_client_server_object_to_file "--client" "clientVersion" "${TEMP}/client_only_json_version_test"
+  kube::test::version::json_client_server_object_to_file "--client" "serverVersion" "${TEMP}/server_client_only_json_version_test"
+  kube::test::version::diff_assert "${TEMP}/client_version_test" "eq" "${TEMP}/client_only_json_version_test" "--client --output json has correct client info"
+  kube::test::version::diff_assert "${TEMP}/server_version_test" "ne" "${TEMP}/server_client_only_json_version_test" "--client --output json has no server info"
+  
+  kube::log::status "Testing kubectl version: compare json output using additional --short flag"
+  kube::test::version::json_client_server_object_to_file "--short" "clientVersion" "${TEMP}/client_short_json_version_test"
+  kube::test::version::json_client_server_object_to_file "--short" "serverVersion" "${TEMP}/server_short_json_version_test"
+  kube::test::version::diff_assert "${TEMP}/client_version_test" "eq" "${TEMP}/client_short_json_version_test" "--short --output client json info is equal to non short result"
+  kube::test::version::diff_assert "${TEMP}/server_version_test" "eq" "${TEMP}/server_short_json_version_test" "--short --output server json info is equal to non short result"
+
+  kube::log::status "Testing kubectl version: compare json output with yaml output"
+  kube::test::version::json_object_to_file "" "${TEMP}/client_server_json_version_test"
+  kube::test::version::yaml_object_to_file "" "${TEMP}/client_server_yaml_version_test"
+  kube::test::version::diff_assert "${TEMP}/client_server_json_version_test" "eq" "${TEMP}/client_server_yaml_version_test" "--output json/yaml has identical information"
+}
+
 # Runs all pod related tests.
 run_pod_tests() {
   kube::log::status "Testing kubectl(v1:pods)"
@@ -672,10 +714,12 @@ __EOF__
   "apiVersion": "v1",
   "metadata": {
     "name": "node-v1-test",
-    "annotations": {"a":"b"}
+    "annotations": {"a":"b"},
+    "resourceVersion": "0"
   }
 }
 __EOF__
+
   # Post-condition: the node command succeeds
   kube::test::get_object_assert "node node-v1-test" "{{.metadata.annotations.a}}" 'b'
   kubectl delete node node-v1-test "${kube_flags[@]}"
@@ -1046,11 +1090,23 @@ run_kubectl_run_tests() {
   # Pre-Condition: no Deployment exists
   kube::test::get_object_assert deployment "{{range.items}}{{$id_field}}:{{end}}" ''
   # Command
-  kubectl run nginx "--image=$IMAGE_NGINX" --generator=deployment/v1beta1 "${kube_flags[@]}"
+  kubectl run nginx-extensions "--image=$IMAGE_NGINX" "${kube_flags[@]}"
   # Post-Condition: Deployment "nginx" is created
-  kube::test::get_object_assert deployment "{{range.items}}{{$id_field}}:{{end}}" 'nginx:'
+  kube::test::get_object_assert deployment.extensions "{{range.items}}{{$id_field}}:{{end}}" 'nginx-extensions:'
+  # and old generator was used, iow. old defaults are applied
+  output_message=$(kubectl get deployment.extensions/nginx-extensions -o jsonpath='{.spec.revisionHistoryLimit}')
+  kube::test::if_has_not_string "${output_message}" '2'
   # Clean up
-  kubectl delete deployment nginx "${kube_flags[@]}"
+  kubectl delete deployment nginx-extensions "${kube_flags[@]}"
+  # Command
+  kubectl run nginx-apps "--image=$IMAGE_NGINX" --generator=deployment/apps.v1beta1 "${kube_flags[@]}"
+  # Post-Condition: Deployment "nginx" is created
+  kube::test::get_object_assert deployment.apps "{{range.items}}{{$id_field}}:{{end}}" 'nginx-apps:'
+  # and new generator was used, iow. new defaults are applied
+  output_message=$(kubectl get deployment/nginx-apps -o jsonpath='{.spec.revisionHistoryLimit}')
+  kube::test::if_has_string "${output_message}" '2'
+  # Clean up
+  kubectl delete deployment nginx-apps "${kube_flags[@]}"
 }
 
 run_kubectl_get_tests() {
@@ -1137,7 +1193,7 @@ run_kubectl_get_tests() {
   kube::test::if_has_string "${output_message}" "/apis/apps/v1beta1/namespaces/default/statefulsets 200 OK"
   kube::test::if_has_string "${output_message}" "/apis/autoscaling/v1/namespaces/default/horizontalpodautoscalers 200"
   kube::test::if_has_string "${output_message}" "/apis/batch/v1/namespaces/default/jobs 200 OK"
-  kube::test::if_has_string "${output_message}" "/apis/apps/v1beta1/namespaces/default/deployments 200 OK"
+  kube::test::if_has_string "${output_message}" "/apis/extensions/v1beta1/namespaces/default/deployments 200 OK"
   kube::test::if_has_string "${output_message}" "/apis/extensions/v1beta1/namespaces/default/replicasets 200 OK"
 
   ### Test --allow-missing-template-keys
@@ -2283,17 +2339,35 @@ run_rc_tests() {
 }
 
 run_deployment_tests() {
-  # Test kubectl create deployment
-  kubectl create deployment test-nginx --image=gcr.io/google-containers/nginx:test-cmd
-  # Post-Condition: Deployment has 2 replicas defined in its spec.
-  kube::test::get_object_assert 'deploy test-nginx' "{{$container_name_field}}" 'nginx'
+  # Test kubectl create deployment (using default - old generator)
+  kubectl create deployment test-nginx-extensions --image=gcr.io/google-containers/nginx:test-cmd
+  # Post-Condition: Deployment "nginx" is created.
+  kube::test::get_object_assert 'deploy test-nginx-extensions' "{{$container_name_field}}" 'nginx'
+  # and old generator was used, iow. old defaults are applied
+  output_message=$(kubectl get deployment.extensions/test-nginx-extensions -o jsonpath='{.spec.revisionHistoryLimit}')
+  kube::test::if_has_not_string "${output_message}" '2'
   # Ensure we can interact with deployments through extensions and apps endpoints
   output_message=$(kubectl get deployment.extensions -o=jsonpath='{.items[0].apiVersion}' 2>&1 "${kube_flags[@]}")
   kube::test::if_has_string "${output_message}" 'extensions/v1beta1'
   output_message=$(kubectl get deployment.apps -o=jsonpath='{.items[0].apiVersion}' 2>&1 "${kube_flags[@]}")
   kube::test::if_has_string "${output_message}" 'apps/v1beta1'
   # Clean up
-  kubectl delete deployment test-nginx "${kube_flags[@]}"
+  kubectl delete deployment test-nginx-extensions "${kube_flags[@]}"
+
+  # Test kubectl create deployment
+  kubectl create deployment test-nginx-apps --image=gcr.io/google-containers/nginx:test-cmd --generator=deployment-basic/apps.v1beta1
+  # Post-Condition: Deployment "nginx" is created.
+  kube::test::get_object_assert 'deploy test-nginx-apps' "{{$container_name_field}}" 'nginx'
+  # and new generator was used, iow. new defaults are applied
+  output_message=$(kubectl get deployment/test-nginx-apps -o jsonpath='{.spec.revisionHistoryLimit}')
+  kube::test::if_has_string "${output_message}" '2'
+  # Ensure we can interact with deployments through extensions and apps endpoints
+  output_message=$(kubectl get deployment.extensions -o=jsonpath='{.items[0].apiVersion}' 2>&1 "${kube_flags[@]}")
+  kube::test::if_has_string "${output_message}" 'extensions/v1beta1'
+  output_message=$(kubectl get deployment.apps -o=jsonpath='{.items[0].apiVersion}' 2>&1 "${kube_flags[@]}")
+  kube::test::if_has_string "${output_message}" 'apps/v1beta1'
+  # Clean up
+  kubectl delete deployment test-nginx-apps "${kube_flags[@]}"
 
   ### Test cascading deletion
   ## Test that rs is deleted when deployment is deleted.
@@ -2382,10 +2456,6 @@ run_deployment_tests() {
   # Check that trying to watch the status of a superseded revision returns an error
   ! kubectl rollout status deployment/nginx --revision=3
   cat hack/testdata/deployment-revision1.yaml | $SED "s/name: nginx$/name: nginx2/" | kubectl create -f - "${kube_flags[@]}"
-  # Newest deployment should be marked as overlapping
-  kubectl get deployment nginx2 -o yaml "${kube_flags[@]}" | grep "deployment.kubernetes.io/error-selector-overlapping-with"
-  # Oldest deployment should not be marked as overlapping
-  ! kubectl get deployment nginx -o yaml "${kube_flags[@]}" | grep "deployment.kubernetes.io/error-selector-overlapping-with"
   # Deletion of both deployments should not be blocked
    kubectl delete deployment nginx2 "${kube_flags[@]}"
   # Clean up
@@ -2791,6 +2861,11 @@ runTests() {
     kubectl get "${kube_flags[@]}" -f hack/testdata/kubernetes-service.yaml
   fi
 
+  #########################
+  # Kubectl version #
+  #########################
+  run_kubectl_version_tests
+
   # Passing no arguments to create is an error
   ! kubectl create
 
@@ -2930,7 +3005,7 @@ runTests() {
   output_message=$(kubectl get --raw=/api/v1)
 
   ## test if a short name is exported during discovery
-  kube::test::if_has_string "${output_message}" '{"name":"configmaps","namespaced":true,"kind":"ConfigMap","verbs":\["create","delete","deletecollection","get","list","patch","update","watch"\],"shortNames":\["cm"\]}'
+  kube::test::if_has_string "${output_message}" '{"name":"configmaps","singularName":"","namespaced":true,"kind":"ConfigMap","verbs":\["create","delete","deletecollection","get","list","patch","update","watch"\],"shortNames":\["cm"\]}'
 
   ###########################
   # POD creation / deletion #

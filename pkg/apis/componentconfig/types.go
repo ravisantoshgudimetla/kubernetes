@@ -210,6 +210,8 @@ type KubeletConfiguration struct {
 	// enableDebuggingHandlers enables server endpoints for log collection
 	// and local running of containers and commands
 	EnableDebuggingHandlers bool
+	// enableContentionProfiling enables lock contention profiling, if enableDebuggingHandlers is true.
+	EnableContentionProfiling bool
 	// minimumGCAge is the minimum age for a finished container before it is
 	// garbage collected.
 	MinimumGCAge metav1.Duration
@@ -682,12 +684,18 @@ type KubeControllerManagerConfiguration struct {
 	ConcurrentSATokenSyncs int32
 	// lookupCacheSizeForRC is the size of lookup cache for replication controllers.
 	// Larger number = more responsive replica management, but more MEM load.
+	// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+	// DEPRECATED: This is no longer used.
 	LookupCacheSizeForRC int32
 	// lookupCacheSizeForRS is the size of lookup cache for replicatsets.
 	// Larger number = more responsive replica management, but more MEM load.
+	// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+	// DEPRECATED: This is no longer used.
 	LookupCacheSizeForRS int32
 	// lookupCacheSizeForDaemonSet is the size of lookup cache for daemonsets.
 	// Larger number = more responsive daemonset, but more MEM load.
+	// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+	// DEPRECATED: This is no longer used.
 	LookupCacheSizeForDaemonSet int32
 	// serviceSyncPeriod is the period for syncing services with their external
 	// load balancers.
@@ -757,6 +765,8 @@ type KubeControllerManagerConfiguration struct {
 	ApproveAllKubeletCSRsForGroup string
 	// enableProfiling enables profiling via web interface host:port/debug/pprof/
 	EnableProfiling bool
+	// enableContentionProfiling enables lock contention profiling, if enableProfiling is true.
+	EnableContentionProfiling bool
 	// clusterName is the instance prefix for the cluster.
 	ClusterName string
 	// clusterCIDR is CIDR Range for Pods in cluster.
@@ -812,8 +822,6 @@ type KubeControllerManagerConfiguration struct {
 	// If set to true enables NoExecute Taints and will evict all not-tolerating
 	// Pod running on Nodes tainted with this kind of Taints.
 	EnableTaintManager bool
-	// If set to true NodeController will use taints to evict Pods from notReady and unreachable Nodes.
-	UseTaintBasedEvictions bool
 	// HorizontalPodAutoscalerUseRESTClients causes the HPA controller to use REST clients
 	// through the kube-aggregator when enabled, instead of using the legacy metrics client
 	// through the API server proxy.
