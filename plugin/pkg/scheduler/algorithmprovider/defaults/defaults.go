@@ -108,13 +108,13 @@ func init() {
 	// EqualPriority is a prioritizer function that gives an equal weight of one to all nodes
 	// Register the priority function so that its available
 	// but do not include it as part of the default priorities
-	factory.RegisterPriorityFunction2("EqualPriority", core.EqualPriorityMap, nil, 1)
+	factory.RegisterPriorityFunctionFactory("EqualPriority", core.EqualPriorityMap, nil, 1)
 	// ImageLocalityPriority prioritizes nodes based on locality of images requested by a pod. Nodes with larger size
 	// of already-installed packages required by the pod will be preferred over nodes with no already-installed
 	// packages required by the pod or a small total size of already-installed packages required by the pod.
-	factory.RegisterPriorityFunction2("ImageLocalityPriority", priorities.ImageLocalityPriorityMap, nil, 1)
+	factory.RegisterPriorityFunctionFactory("ImageLocalityPriority", priorities.ImageLocalityPriorityMap, nil, 1)
 	// Optional, cluster-autoscaler friendly priority function - give used nodes higher priority.
-	factory.RegisterPriorityFunction2("MostRequestedPriority", priorities.MostRequestedPriorityMap, nil, 1)
+	factory.RegisterPriorityFunctionFactory("MostRequestedPriority", priorities.MostRequestedPriorityMap, nil, 1)
 }
 
 func defaultPredicates() sets.String {
@@ -204,20 +204,20 @@ func defaultPriorities() sets.String {
 		),
 
 		// Prioritize nodes by least requested utilization.
-		factory.RegisterPriorityFunction2("LeastRequestedPriority", priorities.LeastRequestedPriorityMap, nil, 1),
+		factory.RegisterPriorityFunctionFactory("LeastRequestedPriority", priorities.LeastRequestedPriorityMap, nil, 1),
 
 		// Prioritizes nodes to help achieve balanced resource usage
-		factory.RegisterPriorityFunction2("BalancedResourceAllocation", priorities.BalancedResourceAllocationMap, nil, 1),
+		factory.RegisterPriorityFunctionFactory("BalancedResourceAllocation", priorities.BalancedResourceAllocationMap, nil, 1),
 
 		// Set this weight large enough to override all other priority functions.
 		// TODO: Figure out a better way to do this, maybe at same time as fixing #24720.
-		factory.RegisterPriorityFunction2("NodePreferAvoidPodsPriority", priorities.CalculateNodePreferAvoidPodsPriorityMap, nil, 10000),
+		factory.RegisterPriorityFunctionFactory("NodePreferAvoidPodsPriority", priorities.CalculateNodePreferAvoidPodsPriorityMap, nil, 10000),
 
 		// Prioritizes nodes that have labels matching NodeAffinity
-		factory.RegisterPriorityFunction2("NodeAffinityPriority", priorities.CalculateNodeAffinityPriorityMap, priorities.CalculateNodeAffinityPriorityReduce, 1),
+		factory.RegisterPriorityFunctionFactory("NodeAffinityPriority", priorities.CalculateNodeAffinityPriorityMap, priorities.CalculateNodeAffinityPriorityReduce, 1),
 
 		// TODO: explain what it does.
-		factory.RegisterPriorityFunction2("TaintTolerationPriority", priorities.ComputeTaintTolerationPriorityMap, priorities.ComputeTaintTolerationPriorityReduce, 1),
+		factory.RegisterPriorityFunctionFactory("TaintTolerationPriority", priorities.ComputeTaintTolerationPriorityMap, priorities.ComputeTaintTolerationPriorityReduce, 1),
 	)
 }
 
