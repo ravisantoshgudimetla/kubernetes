@@ -1,0 +1,101 @@
+
+Normal Throughput
+Scheduled 30000 Pods in 160 seconds (187 per second on average). min QPS was 100
+E0402 15:22:10.716793    4196 event.go:208] Unable to write event: 'Post http://127.0.0.1:36720/api/v1/namespaces/sched-test/events: dial tcp 127.0.0.1:36720: getsockopt: connection refused' (may retry after sleeping)
+Minimal observed throughput for 30k pod test: 100
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	184.721s
++++ [0402 15:22:11] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 15:22:11] performance test cleanup complete
+
+
+Scheduled 30000 Pods in 180 seconds (166 per second on average). min QPS was 104
+E0402 15:27:36.171293   10042 controller.go:162] unable to sync kubernetes service: Post http://127.0.0.1:45405/api/v1/namespaces: dial tcp 127.0.0.1:45405: getsockopt: connection refused
+Minimal observed throughput for 30k pod test: 104
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	207.507s
++++ [0402 15:27:37] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 15:27:37] performance test cleanup complete
+
+
+
+Scheduled 30000 Pods in 161 seconds (186 per second on average). min QPS was 103
+Minimal observed throughput for 30k pod test: 103
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	185.968s
++++ [0402 15:32:04] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 15:32:04] performance test cleanup complete
+
+
+
+having a single match greedily
+Scheduled 30000 Pods in 58 seconds (517 per second on average). min QPS was 418
+Minimal observed throughput for 30k pod test: 418
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	84.715s
++++ [0402 15:42:58] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 15:42:58] performance test cleanup complete
+
+
+
+having a single node without priority
+Scheduled 30000 Pods in 39 seconds (769 per second on average). min QPS was 549
+E0402 16:29:21.806875   28527 event.go:208] Unable to write event: 'Post http://127.0.0.1:39371/api/v1/namespaces/sched-test/events: dial tcp 127.0.0.1:39371: getsockopt: connection refused' (may retry after sleeping)
+Minimal observed throughput for 30k pod test: 549
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	65.134s
++++ [0402 16:29:23] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 16:29:23] performance test cleanup complete
+
+
+
+
+With priority for single node(greedy matched filtered node):(with roundrobin priority node selection)
+
+Scheduled 30000 Pods in 45 seconds (666 per second on average). min QPS was 510
+Minimal observed throughput for 30k pod test: 510
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	69.937s
++++ [0402 16:36:59] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 16:36:59] performance test cleanup complete
+
+
+
+
+
+Scheduled 30000 Pods in 44 seconds (681 per second on average). min QPS was 545(without roundrobin)
+Minimal observed throughput for 30k pod test: 545
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	67.805s
++++ [0402 16:42:26] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 16:42:26] performance test cleanup complete
+
+
+sockopt: connection refused
+Minimal observed throughput for 30k pod test: 524
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	66.670s
++++ [0402 17:18:51] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 17:18:51] performance test cleanup complete
+
+=======================================
+With 100 nodes as filtered output
+Scheduled 30000 Pods in 54 seconds (555 per second on average). min QPS was 446
+Minimal observed throughput for 30k pod test: 446
+PASS
+ok  	k8s.io/kubernetes/test/integration/scheduler_perf	80.178s
++++ [0402 17:28:32] ...density tests finished
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0402 17:28:32] performance test cleanup complete
+[ravig@localhost scheduler_perf]$ 
+
+
+
