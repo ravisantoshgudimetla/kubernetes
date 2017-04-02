@@ -21,7 +21,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
+	//"sync/atomic"
 	"time"
 
 	"github.com/golang/glog"
@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
+	"sync/atomic"
 )
 
 type FailedPredicateMap map[string][]algorithm.PredicateFailureReason
@@ -122,8 +123,10 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 	if err != nil {
 		return "", err
 	}
-
+	//fmt.Println(len(filteredNodes))
+	//return filteredNodes[0].Name,nil
 	trace.Step("Selecting host")
+
 	return g.selectHost(priorityList)
 }
 
@@ -167,12 +170,12 @@ func findNodesThatFit(
 		// and allow assigning.
 		filtered = make([]*v1.Node, len(nodes))
 		errs := []error{}
-		var predicateResultLock sync.Mutex
+		//var predicateResultLock sync.Mutex
 		var filteredLen int32
 
 		// We can use the same metadata producer for all nodes.
 		meta := metadataProducer(pod, nodeNameToInfo)
-		checkNode := func(i int) {
+		/*checkNode := func(i int) {
 			nodeName := nodes[i].Name
 			fits, failedPredicates, err := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs, ecache)
 			if err != nil {
@@ -183,13 +186,27 @@ func findNodesThatFit(
 			}
 			if fits {
 				filtered[atomic.AddInt32(&filteredLen, 1)-1] = nodes[i]
+				return
 			} else {
 				predicateResultLock.Lock()
 				failedPredicateMap[nodeName] = failedPredicates
 				predicateResultLock.Unlock()
 			}
 		}
-		workqueue.Parallelize(16, len(nodes), checkNode)
+		workqueue.Parallelize(16, len(nodes), checkNode)*/
+		for _, node := range nodes {
+			nodeName := node.Name
+			fits, _, _ := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs, ecache)
+			if fits {
+				filtered[atomic.AddInt32(&filteredLen, 1)-1] = node
+				if filteredLen >= 100 {
+					//fmt.Println(len(filtered))
+					break
+				}
+			}
+
+		}
+		//fmt.Println(len(filtered))
 		filtered = filtered[:filteredLen]
 		if len(errs) > 0 {
 			return []*v1.Node{}, FailedPredicateMap{}, errors.NewAggregate(errs)
