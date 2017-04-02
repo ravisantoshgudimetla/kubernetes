@@ -18,7 +18,7 @@ package priorities
 
 import (
 	"fmt"
-
+	"time"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api/v1"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
@@ -59,6 +59,10 @@ func ComputeTaintTolerationPriorityMap(pod *v1.Pod, meta interface{}, nodeInfo *
 	}
 	// To hold all the tolerations with Effect PreferNoSchedule
 	var tolerationsPreferNoSchedule []v1.Toleration
+	t0 := time.Now()
+	taints, _ := nodeInfo.Taints()
+	t1 := time.Now()
+	fmt.Println(t1.Sub(t0))
 	if priorityMeta, ok := meta.(*priorityMetadata); ok {
 		tolerationsPreferNoSchedule = priorityMeta.podTolerations
 
@@ -68,7 +72,7 @@ func ComputeTaintTolerationPriorityMap(pod *v1.Pod, meta interface{}, nodeInfo *
 
 	return schedulerapi.HostPriority{
 		Host:  node.Name,
-		Score: countIntolerableTaintsPreferNoSchedule(node.Spec.Taints, tolerationsPreferNoSchedule),
+		Score: countIntolerableTaintsPreferNoSchedule(taints, tolerationsPreferNoSchedule),
 	}, nil
 }
 
