@@ -118,16 +118,16 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 	}
 
 	trace.Step("Prioritizing")
-	metaPrioritiesInterface := g.priorityMetaProducer(pod, g.cachedNodeInfoMap)
-	priorityList, err := PrioritizeNodes(pod, g.cachedNodeInfoMap, metaPrioritiesInterface, g.prioritizers, filteredNodes, g.extenders)
+	//metaPrioritiesInterface := g.priorityMetaProducer(pod, g.cachedNodeInfoMap)
+	//priorityList, err := PrioritizeNodes(pod, g.cachedNodeInfoMap, metaPrioritiesInterface, g.prioritizers, filteredNodes, g.extenders)
 	if err != nil {
 		return "", err
 	}
 	//fmt.Println(len(filteredNodes))
 	//return filteredNodes[0].Name,nil
 	trace.Step("Selecting host")
-
-	return g.selectHost(priorityList)
+	return filteredNodes[0].Name, nil
+	//return g.selectHost(priorityList)
 }
 
 // selectHost takes a prioritized list of nodes and then picks one
@@ -170,12 +170,12 @@ func findNodesThatFit(
 		// and allow assigning.
 		filtered = make([]*v1.Node, len(nodes))
 		errs := []error{}
-		//var predicateResultLock sync.Mutex
+		var predicateResultLock sync.Mutex
 		var filteredLen int32
 
 		// We can use the same metadata producer for all nodes.
 		meta := metadataProducer(pod, nodeNameToInfo)
-		/*checkNode := func(i int) {
+		checkNode := func(i int) {
 			nodeName := nodes[i].Name
 			fits, failedPredicates, err := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs, ecache)
 			if err != nil {
@@ -193,7 +193,8 @@ func findNodesThatFit(
 				predicateResultLock.Unlock()
 			}
 		}
-		workqueue.Parallelize(16, len(nodes), checkNode)*/
+		workqueue.Parallelize(16, len(nodes), checkNode)
+		/*
 		for _, node := range nodes {
 			nodeName := node.Name
 			fits, _, _ := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs, ecache)
@@ -205,7 +206,7 @@ func findNodesThatFit(
 				}
 			}
 
-		}
+		}*/
 		//fmt.Println(len(filtered))
 		filtered = filtered[:filteredLen]
 		if len(errs) > 0 {

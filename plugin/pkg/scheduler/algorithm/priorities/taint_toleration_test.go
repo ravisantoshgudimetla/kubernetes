@@ -24,7 +24,6 @@ import (
 	"k8s.io/kubernetes/pkg/api/v1"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
-//	"github.com/openshift/origin/pkg/cmd/cli/sa"
 )
 
 func nodeWithTaints(nodeName string, taints []v1.Taint) *v1.Node {
@@ -51,7 +50,22 @@ func podWithTolerations(tolerations []v1.Toleration) *v1.Pod {
 // Pods with zero,one,two,three,four and hundred tolerations are created
 
 func TestTaintAndToleration(t *testing.T) {
-	nodes := []*v1.Node{
+	tests := []struct {
+		pod          *v1.Pod
+		nodes        []*v1.Node
+		expectedList schedulerapi.HostPriorityList
+		test         string
+	}{
+		// basic test case
+		{
+			test: "node with taints tolerated by the pod, gets a higher score than those node with intolerable taints",
+			pod: podWithTolerations([]v1.Toleration{{
+				Key:      "foo",
+				Operator: v1.TolerationOpEqual,
+				Value:    "bar",
+				Effect:   v1.TaintEffectPreferNoSchedule,
+			}}),
+			nodes: []*v1.Node{
 				nodeWithTaints("nodeA", []v1.Taint{{
 					Key:    "foo",
 					Value:  "bar",
@@ -62,28 +76,12 @@ func TestTaintAndToleration(t *testing.T) {
 					Value:  "blah",
 					Effect: v1.TaintEffectPreferNoSchedule,
 				}}),
-			}
-	type sampleTest  struct {
-		pod          *v1.Pod
-		//nodes        []*v1.Node
-		expectedList schedulerapi.HostPriorityList
-		test         string
-	}
-		// basic test case
-	var st sampleTest
-			st.test = "node with taints tolerated by the pod, gets a higher score than those node with intolerable taints"
-			st.pod =podWithTolerations([]v1.Toleration{{
-				Key:      "foo",
-				Operator: v1.TolerationOpEqual,
-				Value:    "bar",
-				Effect:   v1.TaintEffectPreferNoSchedule,
-			}})
-			st.expectedList = []schedulerapi.HostPriority{
+			},
+			expectedList: []schedulerapi.HostPriority{
 				{Host: "nodeA", Score: 10},
 				{Host: "nodeB", Score: 0},
-			}
-
-		/*
+			},
+		},
 		// the count of taints that are tolerated by pod, does not matter.
 		{
 			test: "the nodes that all of their taints are tolerated by the pod, get the same score, no matter how many tolerable taints a node has",
@@ -225,17 +223,18 @@ func TestTaintAndToleration(t *testing.T) {
 				{Host: "nodeA", Score: 10},
 				{Host: "nodeB", Score: 0},
 			},
-		},*/
-	nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(nil, nodes)
-	for i:=1; i<=1000; i++ {
+		},
+	}
+	for _, test := range tests {
+		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap(nil, test.nodes)
 		ttp := priorityFunction(ComputeTaintTolerationPriorityMap, ComputeTaintTolerationPriorityReduce)
-		list, err := ttp(st.pod, nodeNameToInfo, nodes)
+		list, err := ttp(test.pod, nodeNameToInfo, test.nodes)
 		if err != nil {
-			t.Errorf("%s, unexpected error: %v", st.test, err)
+			t.Errorf("%s, unexpected error: %v", test.test, err)
 		}
 
-		if !reflect.DeepEqual(st.expectedList, list) {
-			t.Errorf("%s,\nexpected:\n\t%+v,\ngot:\n\t%+v", st.test, st.expectedList, list)
+		if !reflect.DeepEqual(test.expectedList, list) {
+			t.Errorf("%s,\nexpected:\n\t%+v,\ngot:\n\t%+v", test.test, test.expectedList, list)
 		}
 	}
 
