@@ -148,6 +148,23 @@ func TestSchedule1000Node3KPodsWithInterPodAffinity(t *testing.T) {
 	}
 }
 
+func chooseGenericXXNodeYYPod(nodes, pods int,interPodAffinity bool, t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping because we want to run short tests")
+	}
+	config := defaultSchedulerBenchmarkConfig(nodes, pods, interPodAffinity)
+	var thresholdNeeded int32
+	if nodes == 1000 {
+		thresholdNeeded = threshold3K
+	}
+	if min := schedulePods(config); min < thresholdNeeded {
+		t.Errorf("To small pod scheduling throughput for 30k pods. Expected %v got %v", threshold30K, min)
+	} else {
+		fmt.Printf("Minimal observed throughput for 30k pod test: %v\n", min)
+	}
+
+}
+
 // TestSchedule2000Node60KPods schedules 60k pods on 2000 nodes.
 // This test won't fit in normal 10 minutes time window.
 // func TestSchedule2000Node60KPods(t *testing.T) {
@@ -269,9 +286,7 @@ func schedulePods(config *testConfig) int32 {
 	}
 }
 
-/*
+
 func TestSample(t *testing.T) {
-
-
-	t.Run("Needed", TestSchedule1000Node30KPods)
-}*/
+	chooseGenericXXNodeYYPod(1000, 3000, true, t)
+}
