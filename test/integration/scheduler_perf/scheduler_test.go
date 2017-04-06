@@ -45,7 +45,7 @@ func TestSchedule100Node3KPods(t *testing.T) {
 		t.Skip("Skipping because we want to run short tests")
 	}
 
-	config := defaultSchedulerBenchmarkConfig(100, 3000)
+	config := defaultSchedulerBenchmarkConfig(100, 3000, false)
 	min := schedulePods(config)
 	if min < threshold3K {
 		t.Errorf("Failing: Scheduling rate was too low for an interval, we saw rate of %v, which is the allowed minimum of %v ! ", min, threshold3K)
@@ -127,8 +127,20 @@ func TestSchedule1000Node30KPods(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping because we want to run short tests")
 	}
+	config := defaultSchedulerBenchmarkConfig(1000, 30000, false)
+	if min := schedulePods(config); min < threshold30K {
+		t.Errorf("To small pod scheduling throughput for 30k pods. Expected %v got %v", threshold30K, min)
+	} else {
+		fmt.Printf("Minimal observed throughput for 30k pod test: %v\n", min)
+	}
+}
 
-	config := defaultSchedulerBenchmarkConfig(1000, 30000)
+// TestSchedule1000Node3KPodsWithInterPodAffinity schedules 3k pods on 1000 nodes.
+func TestSchedule1000Node3KPodsWithInterPodAffinity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping because we want to run short tests")
+	}
+	config := defaultSchedulerBenchmarkConfig(1000, 3000, true)
 	if min := schedulePods(config); min < threshold30K {
 		t.Errorf("To small pod scheduling throughput for 30k pods. Expected %v got %v", threshold30K, min)
 	} else {
@@ -167,7 +179,7 @@ func baseConfig() *testConfig {
 	}
 }
 
-func defaultSchedulerBenchmarkConfig(numNodes, numPods int) *testConfig {
+func defaultSchedulerBenchmarkConfig(numNodes, numPods int, affinityType bool) *testConfig {
 	baseConfig := baseConfig()
 
 	nodePreparer := framework.NewIntegrationTestNodePreparer(
@@ -175,9 +187,12 @@ func defaultSchedulerBenchmarkConfig(numNodes, numPods int) *testConfig {
 		[]testutils.CountToStrategy{{Count: numNodes, Strategy: &testutils.TrivialNodePrepareStrategy{}}},
 		"scheduler-perf-",
 	)
-
 	config := testutils.NewTestPodCreatorConfig()
-	config.AddStrategy("sched-test", numPods, testutils.NewSimpleWithControllerCreatePodStrategy("rc1"))
+	if !affinityType {
+		config.AddStrategy("sched-test", numPods, testutils.NewSimpleWithControllerCreatePodStrategy("rc1"))
+	} else if affinityType {
+		config.AddStrategy("sched-test", numPods, testutils.NewSimpleCreatePodStrategy())
+	}
 	podCreator := testutils.NewTestPodCreator(baseConfig.schedulerSupportFunctions.GetClient(), config)
 
 	baseConfig.nodePreparer = nodePreparer
@@ -253,3 +268,10 @@ func schedulePods(config *testConfig) int32 {
 		time.Sleep(1 * time.Second)
 	}
 }
+
+/*
+func TestSample(t *testing.T) {
+
+
+	t.Run("Needed", TestSchedule1000Node30KPods)
+}*/
