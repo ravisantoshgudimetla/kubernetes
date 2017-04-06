@@ -950,7 +950,29 @@ func (c *TestPodCreator) CreatePods() error {
 }
 
 func MakePodSpec() v1.PodSpec {
+	stayWithS1InRegion := &v1.Affinity{
+		PodAffinity: &v1.PodAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []v1.WeightedPodAffinityTerm{
+				{
+					Weight: 5,
+					PodAffinityTerm: v1.PodAffinityTerm{
+						LabelSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "security",
+									Operator: metav1.LabelSelectorOpIn,
+									Values:   []string{"S1"},
+								},
+							},
+						},
+						TopologyKey: "region",
+					},
+				},
+			},
+		},
+	}
 	return v1.PodSpec{
+		Affinity: stayWithS1InRegion,
 		Containers: []v1.Container{{
 			Name:  "pause",
 			Image: "kubernetes/pause",
@@ -1035,6 +1057,7 @@ func NewSimpleCreatePodStrategy() TestPodCreateStrategy {
 	basePod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "simple-pod-",
+			Labels: map[string]string{"security": "S1"},
 		},
 		Spec: MakePodSpec(),
 	}
