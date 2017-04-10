@@ -150,6 +150,10 @@ func NewFromConfigurator(c Configurator, modifiers ...func(c *Config)) (*Schedul
 	return s, nil
 }
 
+func (sched *Scheduler) Config(){
+	return sched.config
+}
+
 // Run begins watching and scheduling. It starts a goroutine and returns immediately.
 func (sched *Scheduler) Run() {
 	go wait.Until(sched.scheduleOne, 0, sched.config.StopEverything)
