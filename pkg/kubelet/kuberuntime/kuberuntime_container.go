@@ -35,7 +35,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/api/v1"
-	runtimeapi "k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/runtime"
+	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/qos"
@@ -357,10 +357,10 @@ func getTerminationMessage(status *runtimeapi.ContainerStatus, terminationMessag
 
 // readLastStringFromContainerLogs attempts to read up to the max log length from the end of the CRI log represented
 // by path. It reads up to max log lines.
-func readLastStringFromContainerLogs(path string) string {
+func (m *kubeGenericRuntimeManager) readLastStringFromContainerLogs(path string) string {
 	value := int64(kubecontainer.MaxContainerTerminationMessageLogLines)
 	buf, _ := circbuf.NewBuffer(kubecontainer.MaxContainerTerminationMessageLogLength)
-	if err := ReadLogs(path, &v1.PodLogOptions{TailLines: &value}, buf, buf); err != nil {
+	if err := m.ReadLogs(path, "", &v1.PodLogOptions{TailLines: &value}, buf, buf); err != nil {
 		return fmt.Sprintf("Error on reading termination message from logs: %v", err)
 	}
 	return buf.String()
@@ -414,7 +414,7 @@ func (m *kubeGenericRuntimeManager) getPodContainerStatuses(uid kubetypes.UID, n
 			tMessage, checkLogs := getTerminationMessage(status, annotatedInfo.TerminationMessagePath, fallbackToLogs)
 			if checkLogs {
 				path := buildFullContainerLogsPath(uid, labeledInfo.ContainerName, annotatedInfo.RestartCount)
-				tMessage = readLastStringFromContainerLogs(path)
+				tMessage = m.readLastStringFromContainerLogs(path)
 			}
 			// Use the termination message written by the application is not empty
 			if len(tMessage) != 0 {
@@ -688,7 +688,7 @@ func (m *kubeGenericRuntimeManager) GetContainerLogs(pod *v1.Pod, containerID ku
 	labeledInfo := getContainerInfoFromLabels(status.Labels)
 	annotatedInfo := getContainerInfoFromAnnotations(status.Annotations)
 	path := buildFullContainerLogsPath(pod.UID, labeledInfo.ContainerName, annotatedInfo.RestartCount)
-	return ReadLogs(path, logOptions, stdout, stderr)
+	return m.ReadLogs(path, containerID.ID, logOptions, stdout, stderr)
 }
 
 // GetExec gets the endpoint the runtime will serve the exec request from.

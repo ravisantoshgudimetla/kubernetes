@@ -25,7 +25,7 @@ import (
 	"github.com/golang/glog"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/api/v1"
-	runtimeapi "k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/runtime"
+	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
@@ -138,7 +138,7 @@ func (m *kubeGenericRuntimeManager) generatePodSandboxLinuxConfig(pod *v1.Pod, c
 	if pod.Spec.SecurityContext != nil {
 		sc := pod.Spec.SecurityContext
 		if sc.RunAsUser != nil {
-			lc.SecurityContext.RunAsUser = &runtimeapi.Int64Value{Value: *sc.RunAsUser}
+			lc.SecurityContext.RunAsUser = &runtimeapi.Int64Value{Value: int64(*sc.RunAsUser)}
 		}
 		lc.SecurityContext.NamespaceOptions = &runtimeapi.NamespaceOption{
 			HostNetwork: pod.Spec.HostNetwork,
@@ -147,13 +147,15 @@ func (m *kubeGenericRuntimeManager) generatePodSandboxLinuxConfig(pod *v1.Pod, c
 		}
 
 		if sc.FSGroup != nil {
-			lc.SecurityContext.SupplementalGroups = append(lc.SecurityContext.SupplementalGroups, *sc.FSGroup)
+			lc.SecurityContext.SupplementalGroups = append(lc.SecurityContext.SupplementalGroups, int64(*sc.FSGroup))
 		}
 		if groups := m.runtimeHelper.GetExtraSupplementalGroupsForPod(pod); len(groups) > 0 {
 			lc.SecurityContext.SupplementalGroups = append(lc.SecurityContext.SupplementalGroups, groups...)
 		}
 		if sc.SupplementalGroups != nil {
-			lc.SecurityContext.SupplementalGroups = append(lc.SecurityContext.SupplementalGroups, sc.SupplementalGroups...)
+			for _, sg := range sc.SupplementalGroups {
+				lc.SecurityContext.SupplementalGroups = append(lc.SecurityContext.SupplementalGroups, int64(sg))
+			}
 		}
 		if sc.SELinuxOptions != nil {
 			lc.SecurityContext.SelinuxOptions = &runtimeapi.SELinuxOption{

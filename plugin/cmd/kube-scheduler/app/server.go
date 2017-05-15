@@ -73,7 +73,7 @@ func Run(s *options.SchedulerServer) error {
 
 	informerFactory := informers.NewSharedInformerFactory(kubecli, 0)
 
-	sched, err := createScheduler(
+	sched, err := CreateScheduler(
 		s,
 		kubecli,
 		informerFactory.Core().V1().Nodes(),
@@ -94,6 +94,8 @@ func Run(s *options.SchedulerServer) error {
 	stop := make(chan struct{})
 	defer close(stop)
 	informerFactory.Start(stop)
+	// Waiting for all cache to sync before scheduling.
+	informerFactory.WaitForCacheSync(stop)
 
 	run := func(_ <-chan struct{}) {
 		sched.Run()
@@ -113,8 +115,8 @@ func Run(s *options.SchedulerServer) error {
 	// TODO: enable other lock types
 	rl := &resourcelock.EndpointsLock{
 		EndpointsMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "kube-scheduler",
+			Namespace: s.LockObjectNamespace,
+			Name:      s.LockObjectName,
 		},
 		Client: kubecli,
 		LockConfig: resourcelock.ResourceLockConfig{

@@ -94,6 +94,11 @@
           volumePath: "[datastore1] volumes/myDisk"
           fsType: ext4
       ```
+      In the above example datastore1 is located in the root folder. If datastore is member of Datastore Cluster or located in sub folder, the folder path needs to be provided in the VolumePath as below. 
+      ```yaml
+      vsphereVolume:
+          VolumePath:	"[DatastoreCluster/datastore1] volumes/myDisk" 
+      ```
 
       [Download example](vsphere-volume-pv.yaml?raw=true)
 
@@ -214,6 +219,7 @@
       provisioner: kubernetes.io/vsphere-volume
       parameters:
           diskformat: zeroedthick
+          fstype:     ext3
       ```
 
       [Download example](vsphere-volume-sc-fast.yaml?raw=true)
@@ -232,7 +238,13 @@
       parameters:
           diskformat: zeroedthick
           datastore: VSANDatastore
-      ```
+      ```     
+      If datastore is member of DataStore Cluster or within some sub folder, the datastore folder path needs to be provided in the datastore parameter as below.
+
+       ```yaml
+       parameters:
+          datastore:	DatastoreCluster/VSANDatastore
+       ```
 
       [Download example](vsphere-volume-sc-with-datastore.yaml?raw=true)
       Creating the storageclass:
@@ -244,11 +256,12 @@
       Verifying storage class is created:
 
       ``` bash
-      $ kubectl describe storageclass fast
-      Name:		fast
-      Annotations:	<none>
-      Provisioner:	kubernetes.io/vsphere-volume
-      Parameters:	diskformat=zeroedthick
+      $ kubectl describe storageclass fast 
+      Name:           fast
+      IsDefaultClass: No
+      Annotations:    <none>
+      Provisioner:    kubernetes.io/vsphere-volume
+      Parameters:     diskformat=zeroedthick,fstype=ext3
       No events.
       ```
 
@@ -283,14 +296,19 @@
 
       ``` bash
       $ kubectl describe pvc pvcsc001
-      Name:		pvcsc001
-      Namespace:	default
-      Status:		Bound
-      Volume:		pvc-80f7b5c1-94b6-11e6-a24f-005056a79d2d
-      Labels:		<none>
-      Capacity:	2Gi
-      Access Modes:	RWO
-      No events.
+      Name:           pvcsc001
+      Namespace:      default
+      StorageClass:   fast
+      Status:         Bound
+      Volume:         pvc-83295256-f8e0-11e6-8263-005056b2349c
+      Labels:         <none>
+      Capacity:       2Gi
+      Access Modes:   RWO
+      Events:
+        FirstSeen     LastSeen        Count   From                            SubObjectPath   Type            Reason                  Message
+        ---------     --------        -----   ----                            -------------   --------        ------                  -------
+        1m            1m              1       persistentvolume-controller                     Normal          ProvisioningSucceeded   Successfully provisioned volume pvc-83295256-f8e0-11e6-8263-005056b2349c using kubernetes.io/vsphere-volume
+
       ```
 
       Persistent Volume is automatically created and is bounded to this pvc.
@@ -298,19 +316,20 @@
       Verifying persistent volume claim is created:
 
       ``` bash
-      $ kubectl describe pv pvc-80f7b5c1-94b6-11e6-a24f-005056a79d2d
-      Name:		pvc-80f7b5c1-94b6-11e6-a24f-005056a79d2d
-      Labels:		<none>
-      Status:		Bound
-      Claim:		default/pvcsc001
-      Reclaim Policy:	Delete
-      Access Modes:	RWO
-      Capacity:	2Gi
+      $ kubectl describe pv pvc-83295256-f8e0-11e6-8263-005056b2349c
+      Name:           pvc-83295256-f8e0-11e6-8263-005056b2349c
+      Labels:         <none>
+      StorageClass:   fast
+      Status:         Bound
+      Claim:          default/pvcsc001
+      Reclaim Policy: Delete
+      Access Modes:   RWO
+      Capacity:       2Gi
       Message:
       Source:
-          Type:	vSphereVolume (a Persistent Disk resource in vSphere)
-          VolumePath:	[datastore1] kubevols/kubernetes-dynamic-pvc-80f7b5c1-94b6-11e6-a24f-005056a79d2d.vmdk
-          FSType:	ext4
+          Type:       vSphereVolume (a Persistent Disk resource in vSphere)
+          VolumePath: [datastore1] kubevols/kubernetes-dynamic-pvc-83295256-f8e0-11e6-8263-005056b2349c.vmdk
+          FSType:     ext3
       No events.
       ```
 
