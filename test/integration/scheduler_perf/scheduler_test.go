@@ -54,6 +54,7 @@ func TestSchedule100Node3KPods(t *testing.T) {
 	}
 }
 
+/*
 // TestSchedule100Node3KNodeAffinityPods schedules 3k pods using Node affinity on 100 nodes.
 func TestSchedule100Node3KNodeAffinityPods(t *testing.T) {
 	if testing.Short() {
@@ -129,6 +130,7 @@ func TestSchedule1000Node30KPods(t *testing.T) {
 		fmt.Printf("Minimal observed throughput for 30k pod test: %v\n", min)
 	}
 }
+*/
 
 // TestSchedule2000Node60KPods schedules 60k pods on 2000 nodes.
 // This test won't fit in normal 10 minutes time window.
@@ -293,6 +295,7 @@ func (na nodeAffinity) mutatePodSpec(numPods int, pod *v1.Pod) []*v1.Pod {
 // generatePodAndNodeTopology is the wrapper function for modifying both pods and node objects.
 func (inputConfig *schedulerPerfConfig) generatePodAndNodeTopology(config *testConfig) {
 	nodeAffinity := inputConfig.NodeAffinity
+	taintsAndTolerations := inputConfig.TaintsAndTolerations
 	podCreatorConfig := testutils.NewTestPodCreatorConfig()
 	var nodeStrategies []testutils.CountToStrategy
 	var pod *v1.Pod
@@ -313,6 +316,20 @@ func (inputConfig *schedulerPerfConfig) generatePodAndNodeTopology(config *testC
 			nodeStrategies, "scheduler-perf-")
 		config.podCreator = testutils.NewTestPodCreator(config.schedulerSupportFunctions.GetClient(), podCreatorConfig)
 		// TODO: other predicates/priorities will be processed in subsequent if statements.
+	}
+	if taintsAndTolerations  != nil {
+		nodePreparer := framework.NewIntegrationTestNodePreparer(
+			config.schedulerSupportFunctions.GetClient(),
+			[]testutils.CountToStrategy{{Count: config.numNodes, Strategy: &testutils.TrivialNodePrepareStrategy{}}},
+			"scheduler-perf-",
+		)
+
+		podConfig := testutils.NewTestPodCreatorConfig()
+		podConfig.AddStrategy("sched-test", config.numPods, testutils.NewSimpleWithControllerCreatePodStrategy("rc1"))
+		podCreator := testutils.NewTestPodCreator(config.schedulerSupportFunctions.GetClient(), podConfig)
+		config.nodePreparer = nodePreparer
+		config.podCreator = podCreator
+
 	} else {
 		// Default configuration.
 		nodePreparer := framework.NewIntegrationTestNodePreparer(
@@ -339,6 +356,10 @@ func writePodAndNodeTopologyToConfig(config *testConfig) {
 			//number of Node-Pod sets with Pods NodeAffinity matching given Nodes.
 			numGroups:       10,
 			nodeAffinityKey: "kubernetes.io/sched-perf-node-affinity",
+		},
+		TaintsAndTolerations: &taintsAndTolerations{
+			taints: 100,
+			tolerations: 100,
 		},
 	}
 	inputConfig.generatePodAndNodeTopology(config)

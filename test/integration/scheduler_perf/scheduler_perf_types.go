@@ -19,6 +19,7 @@ package benchmark
 // High Level Configuration for all predicates and priorities.
 type schedulerPerfConfig struct {
 	NodeAffinity *nodeAffinity
+	TaintsAndTolerations *taintsAndTolerations
 }
 
 // nodeAffinity priority configuration details.
@@ -26,3 +27,12 @@ type nodeAffinity struct {
 	numGroups       int    // number of Node-Pod sets with Pods NodeAffinity matching given Nodes.
 	nodeAffinityKey string // Node Selection Key.
 }
+
+
+// nodeAffinity priority configuration details.
+type taintsAndTolerations struct {
+	taints int // number of taints to be added to each node.
+	tolerations int // number of tolerations to be added to each pod.
+}
+
+
