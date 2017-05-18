@@ -31,8 +31,8 @@ type nodeAffinity struct {
 
 // nodeAffinity priority configuration details.
 type taintsAndTolerations struct {
-	taints int // number of taints to be added to each node.
-	tolerations int // number of tolerations to be added to each pod.
+	taintsCount int // number of taints to be added to each node.
+	tolerationsCount int // number of tolerations to be added to each pod.
 }
 
 

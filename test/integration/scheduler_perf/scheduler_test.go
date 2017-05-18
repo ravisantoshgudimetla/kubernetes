@@ -325,7 +325,7 @@ func (inputConfig *schedulerPerfConfig) generatePodAndNodeTopology(config *testC
 		)
 
 		podConfig := testutils.NewTestPodCreatorConfig()
-		podConfig.AddStrategy("sched-test", config.numPods, testutils.NewSimpleWithControllerCreatePodStrategy("rc1"))
+		podConfig.AddStrategy("sched-test", config.numPods, testutils.NewSimpleWithControllerWithTolerationsCreatePodStrategy("rc1", taintsAndTolerations.tolerationsCount))
 		podCreator := testutils.NewTestPodCreator(config.schedulerSupportFunctions.GetClient(), podConfig)
 		config.nodePreparer = nodePreparer
 		config.podCreator = podCreator
@@ -352,14 +352,14 @@ func (inputConfig *schedulerPerfConfig) generatePodAndNodeTopology(config *testC
 func writePodAndNodeTopologyToConfig(config *testConfig) {
 	// High Level structure that should be filled for every predicate or priority.
 	inputConfig := &schedulerPerfConfig{
-		NodeAffinity: &nodeAffinity{
+		NodeAffinity:  nil, /*&nodeAffinity{
 			//number of Node-Pod sets with Pods NodeAffinity matching given Nodes.
 			numGroups:       10,
 			nodeAffinityKey: "kubernetes.io/sched-perf-node-affinity",
-		},
+		},*/
 		TaintsAndTolerations: &taintsAndTolerations{
-			taints: 100,
-			tolerations: 100,
+			taintsCount: 100,
+			tolerationsCount: 100,
 		},
 	}
 	inputConfig.generatePodAndNodeTopology(config)
