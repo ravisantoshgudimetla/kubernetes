@@ -3576,6 +3576,8 @@ func autoConvert_api_PodSpec_To_v1_PodSpec(in *api.PodSpec, out *PodSpec, s conv
 	out.SchedulerName = in.SchedulerName
 	out.Tolerations = *(*[]Toleration)(unsafe.Pointer(&in.Tolerations))
 	out.HostAliases = *(*[]HostAlias)(unsafe.Pointer(&in.HostAliases))
+	// WARNING: in.PriorityClassName requires manual conversion: does not exist in peer-type
+	// WARNING: in.Priority requires manual conversion: does not exist in peer-type
 	return nil
 }
 

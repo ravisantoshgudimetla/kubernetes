@@ -296,6 +296,10 @@ var ValidateClusterName = genericvalidation.ValidateClusterName
 // (where it should be) and this file.
 var ValidateClassName = NameIsDNSSubdomain
 
+// ValidatePiorityClassName can be used to check whether the given priority
+// class name is valid.
+var ValidatePriorityClassName = NameIsDNSSubdomain
+
 // TODO update all references to these functions to point to the genericvalidation ones
 // NameIsDNSSubdomain is a ValidateNameFunc for names that must be a DNS subdomain.
 func NameIsDNSSubdomain(name string, prefix bool) []string {
@@ -2271,6 +2275,11 @@ func ValidatePodSpec(spec *api.PodSpec, fldPath *field.Path) field.ErrorList {
 	if len(spec.HostAliases) > 0 {
 		allErrs = append(allErrs, ValidateHostAliases(spec.HostAliases, fldPath.Child("hostAliases"))...)
 	}
+	if len(spec.PriorityClassName) > 0 {
+		for _, msg := range ValidatePriorityClassName(spec.PriorityClassName, false) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("priorityClassName"), spec.PriorityClassName, msg))
+		}
+	}
 
 	return allErrs
 }
@@ -2653,6 +2662,13 @@ func ValidatePodUpdate(newPod, oldPod *api.Pod) field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(specPath.Child("activeDeadlineSeconds"), newPod.Spec.ActiveDeadlineSeconds, "must not update from a positive integer to nil value"))
 	}
 
+	// validate updated spec.PriorityClassName.
+	if newPod.Spec.PriorityClassName != oldPod.Spec.PriorityClassName && len(newPod.Spec.PriorityClassName) > 0 {
+		for _, msg := range ValidatePriorityClassName(newPod.Spec.PriorityClassName, false) {
+			allErrs = append(allErrs, field.Invalid(specPath.Child("priorityClassName"), newPod.Spec.PriorityClassName, msg))
+		}
+	}
+
 	// handle updateable fields by munging those fields prior to deep equal comparison.
 	mungedPod := *newPod
 	// munge spec.containers[*].image
@@ -2679,6 +2695,10 @@ func ValidatePodUpdate(newPod, oldPod *api.Pod) field.ErrorList {
 	// Allow only additions to tolerations updates.
 	mungedPod.Spec.Tolerations = oldPod.Spec.Tolerations
 	allErrs = append(allErrs, validateOnlyAddedTolerations(newPod.Spec.Tolerations, oldPod.Spec.Tolerations, specPath.Child("tolerations"))...)
+
+	// munge spec.Priority*
+	mungedPod.Spec.PriorityClassName = oldPod.Spec.PriorityClassName
+	mungedPod.Spec.Priority = oldPod.Spec.Priority
 
 	if !apiequality.Semantic.DeepEqual(mungedPod.Spec, oldPod.Spec) {
 		//TODO: Pinpoint the specific field that causes the invalid error after we have strategic merge diff

@@ -2213,6 +2213,16 @@ type PodSpec struct {
 	// file if specified. This is only valid for non-hostNetwork pods.
 	// +optional
 	HostAliases []HostAlias
+	// If specified, indicates the pod's priority. "system" is a special keyword
+	// which indicates the highest priority. Any other name must be defined by
+	// creating a PriorityClass object with that name.
+	// If not specified, the pod priority will be zero.
+	// +optional
+	PriorityClassName string
+	// The priority value which is resolved by an Admission Controller from
+	// PriorityClassName. The higher the value, the higher the priority.
+	// It must not be specified by user.
+	Priority *int32
 }
 
 // HostAlias holds the mapping between IP and hostnames that will be injected as an entry in the
