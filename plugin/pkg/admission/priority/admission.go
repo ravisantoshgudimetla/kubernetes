@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,89 +17,61 @@ limitations under the License.
 package priority
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 
-	"github.com/golang/glog"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
-	"k8s.io/kubernetes/pkg/util/tolerations"
-	pluginapi "k8s.io/kubernetes/plugin/pkg/admission/podtolerationrestriction/apis/podtolerationrestriction"
+	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 )
 
 // Register registers a plugin
 func Register(plugins *admission.Plugins) {
-	plugins.Register("PodTolerationRestriction", func(config io.Reader) (admission.Interface, error) {
-		pluginConfig, err := loadConfiguration(config)
-		if err != nil {
-			return nil, err
-		}
-		return NewPodTolerationsPlugin(pluginConfig), nil
+	plugins.Register("ComputePriority", func(config io.Reader) (admission.Interface, error) {
+		return ComputePriority(), nil
 	})
 }
 
-type podTolerationsPlugin struct {
+// plugin contains the client used by the admission controller
+type plugin struct {
 	*admission.Handler
 }
 
-// This plugin first verifies any conflict between a pod's tolerations and
-// its namespace's tolerations, and rejects the pod if there's a conflict.
-// If there's no conflict, the pod's tolerations are merged with its namespace's
-// toleration. Resulting pod's tolerations are verified against its namespace's
-// whitelist of tolerations. If the verification is successful, the pod is admitted
-// otherwise rejected. If a namespace does not have associated default or whitelist
-// of tolerations, then cluster level default or whitelist of tolerations are used
-// instead if specified. Tolerations to a namespace are assigned via
-// scheduler.alpha.kubernetes.io/defaultTolerations and scheduler.alpha.kubernetes.io/tolerationsWhitelist
-// annotations keys.
-func (p *podTolerationsPlugin) Admit(a admission.Attributes) error {
-	resource := a.GetResource().GroupResource()
-	if resource != api.Resource("pods") {
-		return nil
+// ComputePrior creates a new instance of the LimitPodHardAntiAffinityTopology admission controller
+func ComputePriority() admission.Interface {
+	return &plugin{
+		Handler: admission.NewHandler(admission.Create, admission.Update),
 	}
-	if a.GetSubresource() != "" {
-		// only run the checks below on pods proper and not subresources
-		return nil
-	}
+}
 
-	obj := a.GetObject()
-	pod, ok := obj.(*api.Pod)
+// Admit will populate the priority based on the 
+func (p *plugin) Admit(attributes admission.Attributes) (err error) {
+	// Ignore all calls to subresources or resources other than pods.
+	if len(attributes.GetSubresource()) != 0 || attributes.GetResource().GroupResource() != api.Resource("pods") {
+		return nil
+	}
+	pod, ok := attributes.GetObject().(*api.Pod)
 	if !ok {
-		glog.Errorf("expected pod but got %s", a.GetKind().Kind)
-		return nil
+		return apierrors.NewBadRequest("Resource was marked with kind Pod but was unable to be converted")
 	}
+	affinity := pod.Spec.Affinity
 
-	if !p.WaitForReady() {
-		return admission.NewForbidden(a, fmt.Errorf("not yet ready to handle request"))
-	}
-
-
-	return nil
-
-}
-
-func NewPodTolerationsPlugin(pluginConfig *pluginapi.Configuration) *podTolerationsPlugin {
-	return &podTolerationsPlugin{
-		Handler:      admission.NewHandler(admission.Create, admission.Update),
-	}
-}
-
-
-func (p *podTolerationsPlugin) Validate() error {
-	if p.namespaceLister == nil {
-		return fmt.Errorf("missing namespaceLister")
-	}
-	if p.client == nil {
-		return fmt.Errorf("missing client")
-	}
+	/*
+	if affinity != nil && affinity.PodAntiAffinity != nil {
+		var podAntiAffinityTerms []api.PodAffinityTerm
+		if len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0 {
+			podAntiAffinityTerms = affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+		}
+		// TODO: Uncomment this block when implement RequiredDuringSchedulingRequiredDuringExecution.
+		//if len(affinity.PodAntiAffinity.RequiredDuringSchedulingRequiredDuringExecution) != 0 {
+		//        podAntiAffinityTerms = append(podAntiAffinityTerms, affinity.PodAntiAffinity.RequiredDuringSchedulingRequiredDuringExecution...)
+		//}
+		for _, v := range podAntiAffinityTerms {
+			if v.TopologyKey != kubeletapis.LabelHostname {
+				return apierrors.NewForbidden(attributes.GetResource().GroupResource(), pod.Name, fmt.Errorf("affinity.PodAntiAffinity.RequiredDuringScheduling has TopologyKey %v but only key %v is allowed", v.TopologyKey, kubeletapis.LabelHostname))
+			}
+		}
+	}*/
 	return nil
 }
-
-
