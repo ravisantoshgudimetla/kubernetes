@@ -17,16 +17,15 @@ limitations under the License.
 package priority
 
 import (
-	"testing"
+	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/kubernetes/pkg/api"
-	admission "k8s.io/apiserver/pkg/admission"
-	"fmt"
+	"testing"
 )
 
 func TestPriorityMapping(t *testing.T) {
 	handler := ComputePriority()
-	expectedSystemPriority :=  int32(100000)
-	expectedDefaultPriority :=  int32(0)
+	expectedSystemPriority := int32(100000)
+	expectedDefaultPriority := int32(0)
 	tests := []struct {
 		description  string
 		requestedPod api.Pod
@@ -42,7 +41,7 @@ func TestPriorityMapping(t *testing.T) {
 			expectedPod: api.Pod{
 				Spec: api.PodSpec{
 					PriorityClassName: "system",
-					Priority: &expectedSystemPriority,
+					Priority:          &expectedSystemPriority,
 				},
 			},
 		},
@@ -56,7 +55,7 @@ func TestPriorityMapping(t *testing.T) {
 			expectedPod: api.Pod{
 				Spec: api.PodSpec{
 					PriorityClassName: "SYSTEM",
-					Priority: &expectedSystemPriority,
+					Priority:          &expectedSystemPriority,
 				},
 			},
 		},
@@ -70,21 +69,19 @@ func TestPriorityMapping(t *testing.T) {
 			expectedPod: api.Pod{
 				Spec: api.PodSpec{
 					PriorityClassName: "SYSTEM1",
-					Priority: &expectedDefaultPriority,
+					Priority:          &expectedDefaultPriority,
 				},
 			},
 		},
 		{
-			description: "pod has no priorityClassName set, so it will have zero priority",
-			requestedPod: api.Pod{
-			},
+			description:  "pod has no priorityClassName set, so it will have zero priority",
+			requestedPod: api.Pod{},
 			expectedPod: api.Pod{
 				Spec: api.PodSpec{
 					Priority: &expectedDefaultPriority,
 				},
 			},
 		},
-
 	}
 	for _, test := range tests {
 		err := handler.Admit(admission.NewAttributesRecord(&test.requestedPod, nil, api.Kind("Pod").WithVersion("version"), "foo", "name", api.Resource("pods").WithVersion("version"), "", "ignored", nil))
@@ -112,4 +109,3 @@ func TestHandles(t *testing.T) {
 		}
 	}
 }
-
