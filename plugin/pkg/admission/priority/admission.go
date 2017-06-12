@@ -17,36 +17,44 @@ limitations under the License.
 package priority
 
 import (
-	"fmt"
 	"io"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/kubernetes/pkg/api"
-	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 )
 
 // Register registers a plugin
 func Register(plugins *admission.Plugins) {
-	plugins.Register("ComputePriority", func(config io.Reader) (admission.Interface, error) {
+	plugins.Register("priorityConfig", func(config io.Reader) (admission.Interface, error) {
 		return ComputePriority(), nil
 	})
 }
 
-// plugin contains the client used by the admission controller
-type plugin struct {
+// priorityConfig contains the client used by the admission controller
+type priorityConfig struct {
 	*admission.Handler
+	priorityMap map[string]*int32
 }
 
 // ComputePrior creates a new instance of the LimitPodHardAntiAffinityTopology admission controller
 func ComputePriority() admission.Interface {
-	return &plugin{
+	return &priorityConfig{
 		Handler: admission.NewHandler(admission.Create, admission.Update),
+		priorityMap: initializePriorities(),
 	}
 }
 
-// Admit will populate the priority based on the 
-func (p *plugin) Admit(attributes admission.Attributes) (err error) {
+func initializePriorities() map[string]*int32{
+	var priorityMap = make(map[string]*int32)
+	// Have to create a var for every priority as golang doesn't allow to take address of numeric constants.
+	systemPriority := int32(100000)
+	priorityMap["system"] = &systemPriority
+	return priorityMap
+}
+
+// Admit will populate the priority based on the PriorityClass field.
+func (p *priorityConfig) Admit(attributes admission.Attributes) (error) {
 	// Ignore all calls to subresources or resources other than pods.
 	if len(attributes.GetSubresource()) != 0 || attributes.GetResource().GroupResource() != api.Resource("pods") {
 		return nil
@@ -55,23 +63,7 @@ func (p *plugin) Admit(attributes admission.Attributes) (err error) {
 	if !ok {
 		return apierrors.NewBadRequest("Resource was marked with kind Pod but was unable to be converted")
 	}
-	affinity := pod.Spec.Affinity
-
-	/*
-	if affinity != nil && affinity.PodAntiAffinity != nil {
-		var podAntiAffinityTerms []api.PodAffinityTerm
-		if len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0 {
-			podAntiAffinityTerms = affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution
-		}
-		// TODO: Uncomment this block when implement RequiredDuringSchedulingRequiredDuringExecution.
-		//if len(affinity.PodAntiAffinity.RequiredDuringSchedulingRequiredDuringExecution) != 0 {
-		//        podAntiAffinityTerms = append(podAntiAffinityTerms, affinity.PodAntiAffinity.RequiredDuringSchedulingRequiredDuringExecution...)
-		//}
-		for _, v := range podAntiAffinityTerms {
-			if v.TopologyKey != kubeletapis.LabelHostname {
-				return apierrors.NewForbidden(attributes.GetResource().GroupResource(), pod.Name, fmt.Errorf("affinity.PodAntiAffinity.RequiredDuringScheduling has TopologyKey %v but only key %v is allowed", v.TopologyKey, kubeletapis.LabelHostname))
-			}
-		}
-	}*/
+	priorityClass := pod.Spec.PriorityClassName
+	pod.Spec.Priority = p.priorityMap[priorityClass]
 	return nil
 }

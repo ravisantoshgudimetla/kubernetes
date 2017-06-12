@@ -14,38 +14,62 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package admit
+package priority
 
 import (
 	"testing"
-
-	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/kubernetes/pkg/api"
+	admission "k8s.io/apiserver/pkg/admission"
 )
 
-func TestAdmissionNonNilAttribute(t *testing.T) {
-	handler := NewAlwaysAdmit()
-	err := handler.Admit(admission.NewAttributesRecord(nil, nil, api.Kind("kind").WithVersion("version"), "namespace", "name", api.Resource("resource").WithVersion("version"), "subresource", admission.Create, nil))
-	if err != nil {
-		t.Errorf("Unexpected error returned from admission handler")
-	}
-}
+func TestPriorityMapping(t *testing.T) {
+	handler := ComputePriority()
+	expectedPriority :=  int32(100000)
+	tests := []struct {
+		description  string
+		requestedPod api.Pod
+		expectedPod  api.Pod
+	}{
+		{
+			description: "pod has no tolerations, expect add tolerations for `notReady:NoExecute` and `unreachable:NoExecute`",
+			requestedPod: api.Pod{
+				Spec: api.PodSpec{
+					PriorityClassName: "system",
+				},
+			},
+			expectedPod: api.Pod{
+				Spec: api.PodSpec{
+					PriorityClassName: "system",
+					Priority: &expectedPriority,
+				},
+			},
+		},
 
-func TestAdmissionNilAttribute(t *testing.T) {
-	handler := NewAlwaysAdmit()
-	err := handler.Admit(nil)
-	if err != nil {
-		t.Errorf("Unexpected error returned from admission handler")
+	}
+	for _, test := range tests {
+		err := handler.Admit(admission.NewAttributesRecord(&test.requestedPod, nil, api.Kind("Pod").WithVersion("version"), "foo", "name", api.Resource("pods").WithVersion("version"), "", "ignored", nil))
+		if err != nil {
+			t.Errorf("[%s]: unexpected error %v for pod %+v", test.description, err, test.requestedPod)
+		}
+		if *test.expectedPod.Spec.Priority != *test.requestedPod.Spec.Priority {
+			t.Errorf("Didn't expect an error")
+		}
 	}
 }
 
 func TestHandles(t *testing.T) {
-	handler := NewAlwaysAdmit()
-	tests := []admission.Operation{admission.Create, admission.Connect, admission.Update, admission.Delete}
-
-	for _, test := range tests {
-		if !handler.Handles(test) {
-			t.Errorf("Expected handling all operations, including: %v", test)
+	handler := ComputePriority()
+	tests := map[admission.Operation]bool{
+		admission.Update:  true,
+		admission.Create:  true,
+		admission.Delete:  false,
+		admission.Connect: false,
+	}
+	for op, expected := range tests {
+		result := handler.Handles(op)
+		if result != expected {
+			t.Errorf("Unexpected result for operation %s: %v\n", op, result)
 		}
 	}
 }
+
