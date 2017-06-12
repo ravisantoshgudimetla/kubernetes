@@ -90,6 +90,7 @@ func mustSetupScheduler() (schedulerConfigurator scheduler.Configurator, destroy
 
 	sched.Run()
 
+
 	destroyFunc = func() {
 		glog.Infof("destroying")
 		sched.StopEverything()
