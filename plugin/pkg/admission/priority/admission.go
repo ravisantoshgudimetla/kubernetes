@@ -18,6 +18,7 @@ package priority
 
 import (
 	"io"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apiserver/pkg/admission"
@@ -37,24 +38,25 @@ type priorityConfig struct {
 	priorityMap map[string]*int32
 }
 
-// ComputePrior creates a new instance of the LimitPodHardAntiAffinityTopology admission controller
+// ComputePriority creates a new instance of the priorityConfig admission controller
 func ComputePriority() admission.Interface {
 	return &priorityConfig{
-		Handler: admission.NewHandler(admission.Create, admission.Update),
+		Handler:     admission.NewHandler(admission.Create, admission.Update),
 		priorityMap: initializePriorities(),
 	}
 }
 
-func initializePriorities() map[string]*int32{
+// initializePriorities initializes the priorities for various priorities.
+func initializePriorities() map[string]*int32 {
 	var priorityMap = make(map[string]*int32)
-	// Have to create a var for every priority as golang doesn't allow to take address of numeric constants.
+	// Have to create a var for every priorityClassName as golang doesn't allow to take address of numeric constants.
 	systemPriority := int32(100000)
 	priorityMap["system"] = &systemPriority
 	return priorityMap
 }
 
 // Admit will populate the priority based on the PriorityClass field.
-func (p *priorityConfig) Admit(attributes admission.Attributes) (error) {
+func (p *priorityConfig) Admit(attributes admission.Attributes) error {
 	// Ignore all calls to subresources or resources other than pods.
 	if len(attributes.GetSubresource()) != 0 || attributes.GetResource().GroupResource() != api.Resource("pods") {
 		return nil
@@ -63,7 +65,14 @@ func (p *priorityConfig) Admit(attributes admission.Attributes) (error) {
 	if !ok {
 		return apierrors.NewBadRequest("Resource was marked with kind Pod but was unable to be converted")
 	}
-	priorityClass := pod.Spec.PriorityClassName
-	pod.Spec.Priority = p.priorityMap[priorityClass]
+	priorityClass := strings.ToLower(pod.Spec.PriorityClassName)
+	val, ok  := p.priorityMap[priorityClass]
+	if !ok {
+		// Set the default priority. This covers even when the length of priorityClass is zero.
+		defaultPriority := int32(0)
+		pod.Spec.Priority = &defaultPriority
+	} else {
+		pod.Spec.Priority = val
+	}
 	return nil
 }

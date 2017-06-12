@@ -20,18 +20,20 @@ import (
 	"testing"
 	"k8s.io/kubernetes/pkg/api"
 	admission "k8s.io/apiserver/pkg/admission"
+	"fmt"
 )
 
 func TestPriorityMapping(t *testing.T) {
 	handler := ComputePriority()
-	expectedPriority :=  int32(100000)
+	expectedSystemPriority :=  int32(100000)
+	expectedDefaultPriority :=  int32(0)
 	tests := []struct {
 		description  string
 		requestedPod api.Pod
 		expectedPod  api.Pod
 	}{
 		{
-			description: "pod has no tolerations, expect add tolerations for `notReady:NoExecute` and `unreachable:NoExecute`",
+			description: "pod has a priorityClassName set with system, so it should have highest priority",
 			requestedPod: api.Pod{
 				Spec: api.PodSpec{
 					PriorityClassName: "system",
@@ -40,7 +42,45 @@ func TestPriorityMapping(t *testing.T) {
 			expectedPod: api.Pod{
 				Spec: api.PodSpec{
 					PriorityClassName: "system",
-					Priority: &expectedPriority,
+					Priority: &expectedSystemPriority,
+				},
+			},
+		},
+		{
+			description: "pod has a priorityClassName set with system, so it should have highest priority",
+			requestedPod: api.Pod{
+				Spec: api.PodSpec{
+					PriorityClassName: "SYSTEM",
+				},
+			},
+			expectedPod: api.Pod{
+				Spec: api.PodSpec{
+					PriorityClassName: "SYSTEM",
+					Priority: &expectedSystemPriority,
+				},
+			},
+		},
+		{
+			description: "pod has a priorityClassName which is not present in default allowable , so it should have zero priority",
+			requestedPod: api.Pod{
+				Spec: api.PodSpec{
+					PriorityClassName: "SYSTEM1",
+				},
+			},
+			expectedPod: api.Pod{
+				Spec: api.PodSpec{
+					PriorityClassName: "SYSTEM1",
+					Priority: &expectedDefaultPriority,
+				},
+			},
+		},
+		{
+			description: "pod has no priorityClassName set, so it will have zero priority",
+			requestedPod: api.Pod{
+			},
+			expectedPod: api.Pod{
+				Spec: api.PodSpec{
+					Priority: &expectedDefaultPriority,
 				},
 			},
 		},
@@ -52,7 +92,7 @@ func TestPriorityMapping(t *testing.T) {
 			t.Errorf("[%s]: unexpected error %v for pod %+v", test.description, err, test.requestedPod)
 		}
 		if *test.expectedPod.Spec.Priority != *test.requestedPod.Spec.Priority {
-			t.Errorf("Didn't expect an error")
+			t.Errorf("Didn't expect an error for test %q", test.description)
 		}
 	}
 }
