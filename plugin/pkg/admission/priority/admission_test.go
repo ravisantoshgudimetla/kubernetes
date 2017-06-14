@@ -24,12 +24,13 @@ import (
 
 func TestPriorityMapping(t *testing.T) {
 	handler := ComputePriority()
-	expectedSystemPriority := int32(100000)
+	expectedSystemPriority := int32(2147483647)
 	expectedDefaultPriority := int32(0)
 	tests := []struct {
 		description  string
 		requestedPod api.Pod
 		expectedPod  api.Pod
+		expectFail   bool
 	}{
 		{
 			description: "pod has a priorityClassName set with system, so it should have highest priority",
@@ -60,24 +61,23 @@ func TestPriorityMapping(t *testing.T) {
 			},
 		},
 		{
-			description: "pod has a priorityClassName which is not present in default allowable , so it should have zero priority",
+			description: "pod has a priorityClassName which is not present in default allowable , so the requested should be rejected",
 			requestedPod: api.Pod{
 				Spec: api.PodSpec{
 					PriorityClassName: "SYSTEM1",
 				},
 			},
-			expectedPod: api.Pod{
-				Spec: api.PodSpec{
-					PriorityClassName: "SYSTEM1",
-					Priority:          &expectedDefaultPriority,
-				},
-			},
+			expectFail: true,
 		},
 		{
 			description:  "pod has no priorityClassName set, so it will have zero priority",
-			requestedPod: api.Pod{},
-			expectedPod: api.Pod{
-				Spec: api.PodSpec{
+			requestedPod: api.Pod{
+				Spec: api.PodSpec {
+					PriorityClassName: "",
+				},
+			},
+			expectedPod: api.Pod {
+			Spec: api.PodSpec {
 					Priority: &expectedDefaultPriority,
 				},
 			},
@@ -85,10 +85,10 @@ func TestPriorityMapping(t *testing.T) {
 	}
 	for _, test := range tests {
 		err := handler.Admit(admission.NewAttributesRecord(&test.requestedPod, nil, api.Kind("Pod").WithVersion("version"), "foo", "name", api.Resource("pods").WithVersion("version"), "", "ignored", nil))
-		if err != nil {
+		if err != nil && !test.expectFail {
 			t.Errorf("[%s]: unexpected error %v for pod %+v", test.description, err, test.requestedPod)
 		}
-		if *test.expectedPod.Spec.Priority != *test.requestedPod.Spec.Priority {
+		if !test.expectFail && *test.expectedPod.Spec.Priority != *test.requestedPod.Spec.Priority {
 			t.Errorf("Didn't expect an error for test %q", test.description)
 		}
 	}

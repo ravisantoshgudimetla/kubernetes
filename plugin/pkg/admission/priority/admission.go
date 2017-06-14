@@ -23,6 +23,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/kubernetes/pkg/api"
+	//"fmt"
 )
 
 // Register registers a plugin
@@ -35,6 +36,7 @@ func Register(plugins *admission.Plugins) {
 // priorityConfig contains the client used by the admission controller
 type priorityConfig struct {
 	*admission.Handler
+	//TODO: Check if this map should be present here. There should be an option to update and delete keys from this map.
 	priorityMap map[string]*int32
 }
 
@@ -47,32 +49,41 @@ func ComputePriority() admission.Interface {
 }
 
 // initializePriorities initializes the priorities for various priorities.
+// TODO: This will be getPriorities once we know where the priorityMap has to be placed.
 func initializePriorities() map[string]*int32 {
 	var priorityMap = make(map[string]*int32)
+	maxInt := 2147483647
+	systemKeyword := "system"
 	// Have to create a var for every priorityClassName as golang doesn't allow to take address of numeric constants.
-	systemPriority := int32(100000)
-	priorityMap["system"] = &systemPriority
+	systemPriority := int32(maxInt)
+	priorityMap[systemKeyword] = &systemPriority
 	return priorityMap
 }
 
-// Admit will populate the priority based on the PriorityClass field.
+// Admit will only admit pods with valid or default priorityClassNames in PriorityClassName field.
 func (p *priorityConfig) Admit(attributes admission.Attributes) error {
 	// Ignore all calls to subresources or resources other than pods.
 	if len(attributes.GetSubresource()) != 0 || attributes.GetResource().GroupResource() != api.Resource("pods") {
 		return nil
 	}
+	//fmt.Println(attributes.)
 	pod, ok := attributes.GetObject().(*api.Pod)
 	if !ok {
 		return apierrors.NewBadRequest("Resource was marked with kind Pod but was unable to be converted")
 	}
-	priorityClass := strings.ToLower(pod.Spec.PriorityClassName)
-	val, ok  := p.priorityMap[priorityClass]
-	if !ok {
-		// Set the default priority. This covers even when the length of priorityClass is zero.
+	priorityClassName := pod.Spec.PriorityClassName
+	if len(priorityClassName) == 0 {
+		// No priorityClass specified. Set the default priority.
 		defaultPriority := int32(0)
 		pod.Spec.Priority = &defaultPriority
+		return nil
+	}
+	priorityClass := strings.ToLower(priorityClassName)
+	priority, ok := p.priorityMap[priorityClass]
+	if !ok {
+		return apierrors.NewBadRequest("Pod is specified with a priorityClass that does not exist")
 	} else {
-		pod.Spec.Priority = val
+		pod.Spec.Priority = priority
 	}
 	return nil
 }
