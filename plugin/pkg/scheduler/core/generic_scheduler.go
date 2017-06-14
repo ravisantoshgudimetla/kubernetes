@@ -184,6 +184,33 @@ func findNodesThatFit(
 
 		// We can use the same metadata producer for all nodes.
 		meta := metadataProducer(pod, nodeNameToInfo)
+		var cpuNodes []*v1.Node
+		var memoryNodes []*v1.Node
+		// We should check here if we already have list of nodes that satisfies all the predicates.
+		// instead of going to subsequent checkNode block. Initially maintaining a cache size of 100.
+		podRequest := predicates.GetResourceRequest(pod) // TODO: We can use meta as interface as speed up this operation.
+		if cachedNodeList, ok := predicates.NodePredicateMapForCPU[podRequest.MilliCPU] ; ok {
+			fmt.Println(cachedNodeList) // This is the list of nodes for the given predicate
+			cpuNodes = cachedNodeList
+		}
+		if cachedNodeList, ok := predicates.NodePredicateMapForMemory[podRequest.Memory] ; ok {
+			fmt.Println(cachedNodeList) // This is the list of nodes for the given predicate
+			memoryNodes = cachedNodeList
+
+		}
+		var neededNodes = make([]*v1.Node, len(nodes))
+		// Find intersection of nodes - that becomes the new nodelist instead of all the nodes.
+		// TODO: Convert this to a set, so that we can use intersection.
+		for _, cpuNode := range cpuNodes {
+			for _, memoryNode := range memoryNodes {
+				if cpuNode == memoryNode {
+					neededNodes = append(neededNodes, cpuNode)
+				}
+			}
+		}
+		if len(neededNodes) > 100 {
+			nodes = neededNodes
+		}
 		checkNode := func(i int) {
 			nodeName := nodes[i].Name
 			fits, failedPredicates, err := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs, ecache)

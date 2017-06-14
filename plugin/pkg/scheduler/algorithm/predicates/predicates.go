@@ -564,6 +564,11 @@ func GetResourceRequest(pod *v1.Pod) *schedulercache.Resource {
 func podName(pod *v1.Pod) string {
 	return pod.Namespace + "/" + pod.Name
 }
+// As of now lists, need to convert them to sets.
+ var NodePredicateMapForMemory = make(map[int64][]*v1.Node)
+ var NodePredicateMapForCPU = make(map[int64][]*v1.Node)
+
+
 
 func PodFitsResources(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
 	node := nodeInfo.Node()
@@ -572,6 +577,7 @@ func PodFitsResources(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.No
 	}
 
 	var predicateFails []algorithm.PredicateFailureReason
+	var nodeList []*v1.Node
 	allowedPodNumber := nodeInfo.AllowedPodNumber()
 	if len(nodeInfo.Pods())+1 > allowedPodNumber {
 		predicateFails = append(predicateFails, NewInsufficientResourceError(v1.ResourcePods, 1, int64(len(nodeInfo.Pods())), int64(allowedPodNumber)))
@@ -591,9 +597,13 @@ func PodFitsResources(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.No
 	allocatable := nodeInfo.AllocatableResource()
 	if allocatable.MilliCPU < podRequest.MilliCPU+nodeInfo.RequestedResource().MilliCPU {
 		predicateFails = append(predicateFails, NewInsufficientResourceError(v1.ResourceCPU, podRequest.MilliCPU, nodeInfo.RequestedResource().MilliCPU, allocatable.MilliCPU))
+	} else {
+		NodePredicateMapForCPU[podRequest.MilliCPU] = append(nodeList, node)
 	}
 	if allocatable.Memory < podRequest.Memory+nodeInfo.RequestedResource().Memory {
 		predicateFails = append(predicateFails, NewInsufficientResourceError(v1.ResourceMemory, podRequest.Memory, nodeInfo.RequestedResource().Memory, allocatable.Memory))
+	} else {
+		NodePredicateMapForMemory[podRequest.Memory] = append(nodeList, node)
 	}
 	if allocatable.NvidiaGPU < podRequest.NvidiaGPU+nodeInfo.RequestedResource().NvidiaGPU {
 		predicateFails = append(predicateFails, NewInsufficientResourceError(v1.ResourceNvidiaGPU, podRequest.NvidiaGPU, nodeInfo.RequestedResource().NvidiaGPU, allocatable.NvidiaGPU))
