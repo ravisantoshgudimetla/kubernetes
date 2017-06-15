@@ -3636,11 +3636,15 @@ const (
 	ResourceQuotaScopeNotBestEffort ResourceQuotaScope = "NotBestEffort"
 )
 
+type ResourceQuotaPriority string
 // ResourceQuotaSpec defines the desired hard limits to enforce for Quota
 type ResourceQuotaSpec struct {
 	// Hard is the set of desired hard limits for each named resource
 	// +optional
 	Hard ResourceList
+	// PriorityClassName is the priorityClassName that will be set for every pod in this namespace.
+	// +optional
+	PriorityClassName ResourceQuotaPriority
 	// A collection of filters that must match each object tracked by a quota.
 	// If not specified, the quota matches all objects.
 	// +optional

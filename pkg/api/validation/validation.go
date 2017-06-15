@@ -61,6 +61,7 @@ const isNegativeErrorMsg string = apimachineryvalidation.IsNegativeErrorMsg
 const isInvalidQuotaResource string = `must be a standard resource for quota`
 const fieldImmutableErrorMsg string = genericvalidation.FieldImmutableErrorMsg
 const isNotIntegerErrorMsg string = `must be an integer`
+const isNotValidPriorityClassErrMsg string = `must be a valid PriorityClassName`
 
 var pdPartitionErrorMsg string = validation.InclusiveRangeError(1, 255)
 var volumeModeErrorMsg string = "must be a number between 0 and 0777 (octal), both inclusive"
@@ -3785,8 +3786,20 @@ func ValidateResourceQuotaSpec(resourceQuotaSpec *api.ResourceQuotaSpec, fld *fi
 		allErrs = append(allErrs, ValidateResourceQuotaResourceName(string(k), resPath)...)
 		allErrs = append(allErrs, ValidateResourceQuantityValue(string(k), v, resPath)...)
 	}
+	allErrs = append(allErrs, validateResourceQuotaPriority(resourceQuotaSpec, fld)...)
 	allErrs = append(allErrs, validateResourceQuotaScopes(resourceQuotaSpec, fld)...)
+	return allErrs
+}
 
+// validateResourceQuotaPriority enforces validation for the resourceQuotaPriority
+func validateResourceQuotaPriority(resourceQuotaSpec *api.ResourceQuotaSpec, fld *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if len(resourceQuotaSpec.PriorityClassName) == 0 {
+		return allErrs
+	}
+	if !helper.IsValidPriorityClassName(string(resourceQuotaSpec.PriorityClassName)) {
+		allErrs = append(allErrs, field.Invalid(fld, resourceQuotaSpec.PriorityClassName, isNotValidPriorityClassErrMsg))
+	}
 	return allErrs
 }
 

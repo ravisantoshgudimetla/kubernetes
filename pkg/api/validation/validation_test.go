@@ -8486,8 +8486,8 @@ func TestValidateResourceQuota(t *testing.T) {
 			api.ResourceConfigMaps:             resource.MustParse("10"),
 			api.ResourceSecrets:                resource.MustParse("10"),
 		},
+		PriorityClassName: "abc",
 	}
-
 	terminatingSpec := api.ResourceQuotaSpec{
 		Hard: api.ResourceList{
 			api.ResourceCPU:       resource.MustParse("100"),

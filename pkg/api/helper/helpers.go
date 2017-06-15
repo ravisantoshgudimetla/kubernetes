@@ -204,6 +204,12 @@ func IsIntegerResourceName(str string) bool {
 	return integerResources.Has(str) || IsOpaqueIntResourceName(api.ResourceName(str))
 }
 
+// IsValidPriorityClassName returns true if the given PriorityClassName is valid.
+func IsValidPriorityClassName(str string) bool {
+	// Need to write a validation, probably this has to be a shared logic between priority added to kubernetes API.
+	return true
+}
+
 // this function aims to check if the service's ClusterIP is set or not
 // the objective is not to perform validation here
 func IsServiceIPSet(service *api.Service) bool {
