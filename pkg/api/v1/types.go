@@ -4172,6 +4172,8 @@ const (
 	ResourceQuotaScopeNotBestEffort ResourceQuotaScope = "NotBestEffort"
 )
 
+type ResourceQuotaPriority string
+
 // ResourceQuotaSpec defines the desired hard limits to enforce for Quota.
 type ResourceQuotaSpec struct {
 	// Hard is the set of desired hard limits for each named resource.
@@ -4182,6 +4184,9 @@ type ResourceQuotaSpec struct {
 	// If not specified, the quota matches all objects.
 	// +optional
 	Scopes []ResourceQuotaScope `json:"scopes,omitempty" protobuf:"bytes,2,rep,name=scopes,casttype=ResourceQuotaScope"`
+	// PriorityClassName is the priorityClassName that will be set for every pod in this namespace.
+	// +optional
+	PriorityClassName ResourceQuotaPriority `json:"scopes,omitempty" protobuf:"bytes,3,rep,name=PriorityClassName,casttype=ResourceQuotaPriority"`
 }
 
 // ResourceQuotaStatus defines the enforced hard limits and observed use.
