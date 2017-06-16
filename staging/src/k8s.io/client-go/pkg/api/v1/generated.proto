@@ -3264,6 +3264,10 @@ message ResourceQuotaSpec {
   // If not specified, the quota matches all objects.
   // +optional
   repeated string scopes = 2;
+
+  // PriorityClassName is the priorityClassName that will be set for every pod in this namespace.
+  // +optional
+  optional string PriorityClassName = 3;
 }
 
 // ResourceQuotaStatus defines the enforced hard limits and observed use.

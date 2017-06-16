@@ -1638,9 +1638,10 @@ func (ResourceQuotaList) SwaggerDoc() map[string]string {
 }
 
 var map_ResourceQuotaSpec = map[string]string{
-	"":       "ResourceQuotaSpec defines the desired hard limits to enforce for Quota.",
-	"hard":   "Hard is the set of desired hard limits for each named resource. More info: https://git.k8s.io/community/contributors/design-proposals/admission_control_resource_quota.md",
-	"scopes": "A collection of filters that must match each object tracked by a quota. If not specified, the quota matches all objects.",
+	"":                  "ResourceQuotaSpec defines the desired hard limits to enforce for Quota.",
+	"hard":              "Hard is the set of desired hard limits for each named resource. More info: https://git.k8s.io/community/contributors/design-proposals/admission_control_resource_quota.md",
+	"scopes":            "A collection of filters that must match each object tracked by a quota. If not specified, the quota matches all objects.",
+	"priorityClassName": "PriorityClassName is the priorityClassName that will be set for every pod in this namespace.",
 }
 
 func (ResourceQuotaSpec) SwaggerDoc() map[string]string {

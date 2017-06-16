@@ -2413,7 +2413,13 @@ func (x codecSelfer1234) encSlicev1_ObjectReference(v []pkg4_v1.ObjectReference,
 	for _, yyv1 := range v {
 		z.EncSendContainerState(codecSelfer_containerArrayElem1234)
 		yy2 := &yyv1
-		yy2.CodecEncodeSelf(e)
+		yym3 := z.EncBinary()
+		_ = yym3
+		if false {
+		} else if z.HasExtensions() && z.EncExt(yy2) {
+		} else {
+			z.EncFallback(yy2)
+		}
 	}
 	z.EncSendContainerState(codecSelfer_containerArrayEnd1234)
 }
@@ -2470,7 +2476,13 @@ func (x codecSelfer1234) decSlicev1_ObjectReference(v *[]pkg4_v1.ObjectReference
 				yyv1[yyj1] = pkg4_v1.ObjectReference{}
 			} else {
 				yyv2 := &yyv1[yyj1]
-				yyv2.CodecDecodeSelf(d)
+				yym3 := z.DecBinary()
+				_ = yym3
+				if false {
+				} else if z.HasExtensions() && z.DecExt(yyv2) {
+				} else {
+					z.DecFallback(yyv2, false)
+				}
 			}
 
 		}
@@ -2481,8 +2493,14 @@ func (x codecSelfer1234) decSlicev1_ObjectReference(v *[]pkg4_v1.ObjectReference
 				if r.TryDecodeAsNil() {
 					yyv1[yyj1] = pkg4_v1.ObjectReference{}
 				} else {
-					yyv3 := &yyv1[yyj1]
-					yyv3.CodecDecodeSelf(d)
+					yyv4 := &yyv1[yyj1]
+					yym5 := z.DecBinary()
+					_ = yym5
+					if false {
+					} else if z.HasExtensions() && z.DecExt(yyv4) {
+					} else {
+						z.DecFallback(yyv4, false)
+					}
 				}
 
 			}
@@ -2501,8 +2519,14 @@ func (x codecSelfer1234) decSlicev1_ObjectReference(v *[]pkg4_v1.ObjectReference
 				if r.TryDecodeAsNil() {
 					yyv1[yyj1] = pkg4_v1.ObjectReference{}
 				} else {
-					yyv4 := &yyv1[yyj1]
-					yyv4.CodecDecodeSelf(d)
+					yyv6 := &yyv1[yyj1]
+					yym7 := z.DecBinary()
+					_ = yym7
+					if false {
+					} else if z.HasExtensions() && z.DecExt(yyv6) {
+					} else {
+						z.DecFallback(yyv6, false)
+					}
 				}
 
 			} else {

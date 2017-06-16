@@ -4197,7 +4197,17 @@ func Convert_api_ResourceQuota_To_v1_ResourceQuota(in *api.ResourceQuota, out *R
 
 func autoConvert_v1_ResourceQuotaList_To_api_ResourceQuotaList(in *ResourceQuotaList, out *api.ResourceQuotaList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
-	out.Items = *(*[]api.ResourceQuota)(unsafe.Pointer(&in.Items))
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]api.ResourceQuota, len(*in))
+		for i := range *in {
+			if err := Convert_v1_ResourceQuota_To_api_ResourceQuota(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
 	return nil
 }
 
@@ -4208,10 +4218,16 @@ func Convert_v1_ResourceQuotaList_To_api_ResourceQuotaList(in *ResourceQuotaList
 
 func autoConvert_api_ResourceQuotaList_To_v1_ResourceQuotaList(in *api.ResourceQuotaList, out *ResourceQuotaList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
-	if in.Items == nil {
-		out.Items = make([]ResourceQuota, 0)
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]ResourceQuota, len(*in))
+		for i := range *in {
+			if err := Convert_api_ResourceQuota_To_v1_ResourceQuota(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
 	} else {
-		out.Items = *(*[]ResourceQuota)(unsafe.Pointer(&in.Items))
+		out.Items = make([]ResourceQuota, 0)
 	}
 	return nil
 }
@@ -4224,6 +4240,7 @@ func Convert_api_ResourceQuotaList_To_v1_ResourceQuotaList(in *api.ResourceQuota
 func autoConvert_v1_ResourceQuotaSpec_To_api_ResourceQuotaSpec(in *ResourceQuotaSpec, out *api.ResourceQuotaSpec, s conversion.Scope) error {
 	out.Hard = *(*api.ResourceList)(unsafe.Pointer(&in.Hard))
 	out.Scopes = *(*[]api.ResourceQuotaScope)(unsafe.Pointer(&in.Scopes))
+	out.PriorityClassName = api.ResourceQuotaPriority(in.PriorityClassName)
 	return nil
 }
 
@@ -4234,6 +4251,7 @@ func Convert_v1_ResourceQuotaSpec_To_api_ResourceQuotaSpec(in *ResourceQuotaSpec
 
 func autoConvert_api_ResourceQuotaSpec_To_v1_ResourceQuotaSpec(in *api.ResourceQuotaSpec, out *ResourceQuotaSpec, s conversion.Scope) error {
 	out.Hard = *(*ResourceList)(unsafe.Pointer(&in.Hard))
+	out.PriorityClassName = ResourceQuotaPriority(in.PriorityClassName)
 	out.Scopes = *(*[]ResourceQuotaScope)(unsafe.Pointer(&in.Scopes))
 	return nil
 }
