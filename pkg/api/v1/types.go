@@ -4186,7 +4186,7 @@ type ResourceQuotaSpec struct {
 	Scopes []ResourceQuotaScope `json:"scopes,omitempty" protobuf:"bytes,2,rep,name=scopes,casttype=ResourceQuotaScope"`
 	// PriorityClassName is the priorityClassName that will be set for every pod in this namespace.
 	// +optional
-	PriorityClassName ResourceQuotaPriority `json:"scopes,omitempty" protobuf:"bytes,3,rep,name=PriorityClassName,casttype=ResourceQuotaPriority"`
+	PriorityClassName ResourceQuotaPriority `json:"priorityClassName,omitempty" protobuf:"bytes,3,rep,name=PriorityClassName,casttype=ResourceQuotaPriority"`
 }
 
 // ResourceQuotaStatus defines the enforced hard limits and observed use.

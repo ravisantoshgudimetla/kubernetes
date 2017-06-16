@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
    "title": "Kubernetes",
-   "version": "v1.8.0"
+   "version": "v1.7.0"
   },
   "paths": {
    "/api/": {
@@ -50166,6 +50166,10 @@
       "additionalProperties": {
        "$ref": "#/definitions/io.k8s.apimachinery.pkg.api.resource.Quantity"
       }
+     },
+     "priorityClassName": {
+      "description": "PriorityClassName is the priorityClassName that will be set for every pod in this namespace.",
+      "type": "string"
      },
      "scopes": {
       "description": "A collection of filters that must match each object tracked by a quota. If not specified, the quota matches all objects.",

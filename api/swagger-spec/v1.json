@@ -21528,6 +21528,10 @@
        "$ref": "v1.ResourceQuotaScope"
       },
       "description": "A collection of filters that must match each object tracked by a quota. If not specified, the quota matches all objects."
+     },
+     "priorityClassName": {
+      "type": "string",
+      "description": "PriorityClassName is the priorityClassName that will be set for every pod in this namespace."
      }
     }
    },
