@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"path/filepath"
+	"path"
 	"strconv"
 	"text/template"
 
@@ -41,7 +41,6 @@ import (
 	"k8s.io/kubernetes/cmd/kubeadm/app/preflight"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/util/version"
 )
 
 var (
@@ -50,9 +49,9 @@ var (
 
 		To start using your cluster, you need to run (as a regular user):
 
-		  mkdir -p $HOME/.kube
-		  sudo cp -i {{.KubeConfigPath}} $HOME/.kube/config
-		  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+		  sudo cp {{.KubeConfigPath}} $HOME/
+		  sudo chown $(id -u):$(id -g) $HOME/{{.KubeConfigName}}
+		  export KUBECONFIG=$HOME/{{.KubeConfigName}}
 
 		You should now deploy a pod network to the cluster.
 		Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
@@ -218,7 +217,7 @@ func (i *Init) Run(out io.Writer) error {
 		return err
 	}
 
-	adminKubeConfigPath := filepath.Join(kubeadmapi.GlobalEnvParams.KubernetesDir, kubeadmconstants.AdminKubeConfigFileName)
+	adminKubeConfigPath := path.Join(kubeadmapi.GlobalEnvParams.KubernetesDir, kubeadmconstants.AdminKubeConfigFileName)
 	client, err := kubemaster.CreateClientAndWaitForAPI(adminKubeConfigPath)
 	if err != nil {
 		return err
@@ -248,16 +247,11 @@ func (i *Init) Run(out io.Writer) error {
 		return err
 	}
 
-	if err := tokenphase.CreateBootstrapConfigMapIfNotExists(client, adminKubeConfigPath); err != nil {
+	if err := tokenphase.CreateBootstrapConfigMap(adminKubeConfigPath); err != nil {
 		return err
 	}
 
 	// PHASE 5: Install and deploy all addons, and configure things as necessary
-
-	k8sVersion, err := version.ParseSemantic(i.cfg.KubernetesVersion)
-	if err != nil {
-		return fmt.Errorf("couldn't parse kubernetes version %q: %v", i.cfg.KubernetesVersion, err)
-	}
 
 	// Create the necessary ServiceAccounts
 	err = apiconfigphase.CreateServiceAccounts(client)
@@ -265,7 +259,7 @@ func (i *Init) Run(out io.Writer) error {
 		return err
 	}
 
-	err = apiconfigphase.CreateRBACRules(client, k8sVersion)
+	err = apiconfigphase.CreateRBACRules(client)
 	if err != nil {
 		return err
 	}
@@ -275,7 +269,7 @@ func (i *Init) Run(out io.Writer) error {
 	}
 
 	ctx := map[string]string{
-		"KubeConfigPath": filepath.Join(kubeadmapi.GlobalEnvParams.KubernetesDir, kubeadmconstants.AdminKubeConfigFileName),
+		"KubeConfigPath": path.Join(kubeadmapi.GlobalEnvParams.KubernetesDir, kubeadmconstants.AdminKubeConfigFileName),
 		"KubeConfigName": kubeadmconstants.AdminKubeConfigFileName,
 		"Token":          i.cfg.Token,
 		"MasterIP":       i.cfg.API.AdvertiseAddress,

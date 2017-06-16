@@ -83,7 +83,6 @@ NETWORK=${KUBE_GCE_NETWORK:-default}
 INSTANCE_PREFIX="${KUBE_GCE_INSTANCE_PREFIX:-kubernetes}"
 CLUSTER_NAME="${CLUSTER_NAME:-${INSTANCE_PREFIX}}"
 MASTER_NAME="${INSTANCE_PREFIX}-master"
-AGGREGATOR_MASTER_NAME="${INSTANCE_PREFIX}-aggregator"
 INITIAL_ETCD_CLUSTER="${MASTER_NAME}"
 ETCD_QUORUM_READ="${ENABLE_ETCD_QUORUM_READ:-false}"
 MASTER_TAG="${INSTANCE_PREFIX}-master"
@@ -130,13 +129,7 @@ NODE_LABELS="${KUBE_NODE_LABELS:-beta.kubernetes.io/fluentd-ds-ready=true}"
 # To avoid running Calico on a node that is not configured appropriately, 
 # label each Node so that the DaemonSet can run the Pods only on ready Nodes.
 if [[ ${NETWORK_POLICY_PROVIDER:-} == "calico" ]]; then
-	NODE_LABELS="${NODE_LABELS},projectcalico.org/ds-ready=true"
-fi
-
-# Turn the simple metadata proxy on by default.
-ENABLE_METADATA_PROXY="${ENABLE_METADATA_PROXY:-simple}"
-if [[ ${ENABLE_METADATA_PROXY} != "false" ]]; then
-        NODE_LABELS="${NODE_LABELS},beta.kubernetes.io/metadata-proxy-ready=true"
+	NODE_LABELS="$NODE_LABELS,projectcalico.org/ds-ready=true"
 fi
 
 # Optional: Enable node logging.
@@ -189,8 +182,6 @@ if [[ "${NODE_OS_DISTRIBUTION}" == "gci" ]]; then
 else
   ENABLE_NODE_PROBLEM_DETECTOR="${KUBE_ENABLE_NODE_PROBLEM_DETECTOR:-daemonset}"
 fi
-NODE_PROBLEM_DETECTOR_VERSION="${NODE_PROBLEM_DETECTOR_VERSION:-}"
-NODE_PROBLEM_DETECTOR_TAR_HASH="${NODE_PROBLEM_DETECTOR_TAR_HASH:-}"
 
 # Optional: Create autoscaler for cluster's nodes.
 ENABLE_CLUSTER_AUTOSCALER="${KUBE_ENABLE_CLUSTER_AUTOSCALER:-false}"
@@ -226,7 +217,7 @@ fi
 
 # Admission Controllers to invoke prior to persisting objects in cluster
 # If we included ResourceQuota, we should keep it at the end of the list to prevent incrementing quota usage prematurely.
-ADMISSION_CONTROL=Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,ResourceQuota
+ADMISSION_CONTROL=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota
 
 # Optional: if set to true kube-up will automatically check for existing resources and clean them up.
 KUBE_UP_AUTOMATIC_CLEANUP=${KUBE_UP_AUTOMATIC_CLEANUP:-false}
@@ -242,9 +233,6 @@ OPENCONTRAIL_PUBLIC_SUBNET="${OPENCONTRAIL_PUBLIC_SUBNET:-10.1.0.0/16}"
 
 # Network Policy plugin specific settings.
 NETWORK_POLICY_PROVIDER="${NETWORK_POLICY_PROVIDER:-none}" # calico
-
-# Should the kubelet configure egress masquerade (old way) or let a daemonset do it?
-NON_MASQUERADE_CIDR="0.0.0.0/0"
 
 # How should the kubelet configure hairpin mode?
 HAIRPIN_MODE="${HAIRPIN_MODE:-promiscuous-bridge}" # promiscuous-bridge, hairpin-veth, none

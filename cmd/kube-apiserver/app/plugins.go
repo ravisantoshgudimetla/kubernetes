@@ -33,22 +33,21 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/admission/exec"
 	"k8s.io/kubernetes/plugin/pkg/admission/gc"
 	"k8s.io/kubernetes/plugin/pkg/admission/imagepolicy"
-	"k8s.io/kubernetes/plugin/pkg/admission/initialization"
 	"k8s.io/kubernetes/plugin/pkg/admission/initialresources"
 	"k8s.io/kubernetes/plugin/pkg/admission/limitranger"
 	"k8s.io/kubernetes/plugin/pkg/admission/namespace/autoprovision"
 	"k8s.io/kubernetes/plugin/pkg/admission/namespace/exists"
-	"k8s.io/kubernetes/plugin/pkg/admission/noderestriction"
+	"k8s.io/kubernetes/plugin/pkg/admission/namespace/lifecycle"
+	noderestriction "k8s.io/kubernetes/plugin/pkg/admission/noderestriction"
 	"k8s.io/kubernetes/plugin/pkg/admission/persistentvolume/label"
 	"k8s.io/kubernetes/plugin/pkg/admission/podnodeselector"
-	"k8s.io/kubernetes/plugin/pkg/admission/podpreset"
+	podpreset "k8s.io/kubernetes/plugin/pkg/admission/podpreset"
 	"k8s.io/kubernetes/plugin/pkg/admission/podtolerationrestriction"
 	"k8s.io/kubernetes/plugin/pkg/admission/resourcequota"
-	"k8s.io/kubernetes/plugin/pkg/admission/security/podsecuritypolicy"
+	podsecuritypolicy "k8s.io/kubernetes/plugin/pkg/admission/security/podsecuritypolicy"
 	"k8s.io/kubernetes/plugin/pkg/admission/securitycontext/scdeny"
 	"k8s.io/kubernetes/plugin/pkg/admission/serviceaccount"
-	"k8s.io/kubernetes/plugin/pkg/admission/storageclass/setdefault"
-	"k8s.io/kubernetes/plugin/pkg/admission/webhook"
+	storagedefault "k8s.io/kubernetes/plugin/pkg/admission/storageclass/default"
 )
 
 // registerAllAdmissionPlugins registers all admission plugins
@@ -61,11 +60,11 @@ func registerAllAdmissionPlugins(plugins *admission.Plugins) {
 	exec.Register(plugins)
 	gc.Register(plugins)
 	imagepolicy.Register(plugins)
-	initialization.Register(plugins)
 	initialresources.Register(plugins)
 	limitranger.Register(plugins)
 	autoprovision.Register(plugins)
 	exists.Register(plugins)
+	lifecycle.Register(plugins)
 	noderestriction.Register(plugins)
 	label.Register(plugins)
 	podnodeselector.Register(plugins)
@@ -75,6 +74,5 @@ func registerAllAdmissionPlugins(plugins *admission.Plugins) {
 	podsecuritypolicy.Register(plugins)
 	scdeny.Register(plugins)
 	serviceaccount.Register(plugins)
-	setdefault.Register(plugins)
-	webhook.Register(plugins)
+	storagedefault.Register(plugins)
 }

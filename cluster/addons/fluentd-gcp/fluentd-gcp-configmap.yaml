@@ -295,7 +295,7 @@ data:
     # Prometheus monitoring
     <source>
       @type prometheus
-      port 31337
+      port 80
     </source>
 
     <source>

@@ -118,7 +118,7 @@ func (r *Reset) Run(out io.Writer) error {
 
 	// Only clear etcd data when the etcd manifest is found. In case it is not found, we must assume that the user
 	// provided external etcd endpoints. In that case, it is his own responsibility to reset etcd
-	etcdManifestPath := filepath.Join(kubeadmapi.GlobalEnvParams.KubernetesDir, kubeadmconstants.ManifestsSubDirName, "etcd.yaml")
+	etcdManifestPath := filepath.Join(kubeadmapi.GlobalEnvParams.KubernetesDir, "manifests/etcd.yaml")
 	if _, err := os.Stat(etcdManifestPath); err == nil {
 		dirsToClean = append(dirsToClean, "/var/lib/etcd")
 	} else {
@@ -155,7 +155,8 @@ func cleanDir(filePath string) error {
 		return err
 	}
 	for _, name := range names {
-		if err = os.RemoveAll(filepath.Join(filePath, name)); err != nil {
+		err = os.RemoveAll(filepath.Join(filePath, name))
+		if err != nil {
 			return err
 		}
 	}
@@ -165,12 +166,13 @@ func cleanDir(filePath string) error {
 // resetConfigDir is used to cleanup the files kubeadm writes in /etc/kubernetes/.
 func resetConfigDir(configPathDir, pkiPathDir string) {
 	dirsToClean := []string{
-		filepath.Join(configPathDir, kubeadmconstants.ManifestsSubDirName),
+		filepath.Join(configPathDir, "manifests"),
 		pkiPathDir,
 	}
 	fmt.Printf("[reset] Deleting contents of config directories: %v\n", dirsToClean)
 	for _, dir := range dirsToClean {
-		if err := cleanDir(dir); err != nil {
+		err := cleanDir(dir)
+		if err != nil {
 			fmt.Printf("[reset] Failed to remove directory: %q [%v]\n", dir, err)
 		}
 	}
@@ -183,7 +185,8 @@ func resetConfigDir(configPathDir, pkiPathDir string) {
 	}
 	fmt.Printf("[reset] Deleting files: %v\n", filesToClean)
 	for _, path := range filesToClean {
-		if err := os.RemoveAll(path); err != nil {
+		err := os.RemoveAll(path)
+		if err != nil {
 			fmt.Printf("[reset] Failed to remove file: %q [%v]\n", path, err)
 		}
 	}

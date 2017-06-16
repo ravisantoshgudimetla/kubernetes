@@ -47,10 +47,8 @@ import (
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
-	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/filters"
-	"k8s.io/apiserver/pkg/server/options/encryptionconfig"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
@@ -59,9 +57,7 @@ import (
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/batch"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/apis/networking"
 	"k8s.io/kubernetes/pkg/capabilities"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
 	"k8s.io/kubernetes/pkg/cloudprovider"
@@ -104,27 +100,13 @@ cluster's shared state through which all other components interact.`,
 
 // Run runs the specified APIServer.  This should never exit.
 func Run(runOptions *options.ServerRunOptions, stopCh <-chan struct{}) error {
-	nodeTunneler, proxyTransport, err := CreateNodeDialer(runOptions)
-	if err != nil {
-		return err
-	}
-	kubeAPIServerConfig, sharedInformers, insecureServingOptions, err := CreateKubeAPIServerConfig(runOptions, nodeTunneler, proxyTransport)
+	kubeAPIServerConfig, sharedInformers, insecureServingOptions, err := CreateKubeAPIServerConfig(runOptions)
 	if err != nil {
 		return err
 	}
 
-	// TPRs are enabled and not yet beta, since this these are the successor, they fall under the same enablement rule
-	// If additional API servers are added, they should be gated.
-	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, runOptions)
-	if err != nil {
-		return err
-	}
-	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.EmptyDelegate)
-	if err != nil {
-		return err
-	}
-
-	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer, sharedInformers, apiExtensionsConfig.CRDRESTOptionsGetter)
+	// kubeAPIServer is at the base for now.  This ensures that CustomResourceDefinitions trump TPRs
+	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, genericapiserver.EmptyDelegate, sharedInformers)
 	if err != nil {
 		return err
 	}
@@ -146,12 +128,24 @@ func Run(runOptions *options.ServerRunOptions, stopCh <-chan struct{}) error {
 	// this wires up openapi
 	kubeAPIServer.GenericAPIServer.PrepareRun()
 
-	// aggregator comes last in the chain
-	aggregatorConfig, err := createAggregatorConfig(*kubeAPIServerConfig.GenericConfig, runOptions, proxyTransport)
+	// TPRs are enabled and not yet beta, since this these are the successor, they fall under the same enablement rule
+	// Subsequent API servers in between here and kube-apiserver will need to be gated.
+	// These come first so that if someone registers both a TPR and a CRD, the CRD is preferred.
+	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, runOptions)
 	if err != nil {
 		return err
 	}
-	aggregatorServer, err := createAggregatorServer(aggregatorConfig, kubeAPIServer.GenericAPIServer, sharedInformers, apiExtensionsServer.Informers)
+	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, kubeAPIServer.GenericAPIServer)
+	if err != nil {
+		return err
+	}
+
+	// aggregator comes last in the chain
+	aggregatorConfig, err := createAggregatorConfig(*kubeAPIServerConfig.GenericConfig, runOptions)
+	if err != nil {
+		return err
+	}
+	aggregatorServer, err := createAggregatorServer(aggregatorConfig, apiExtensionsServer.GenericAPIServer, sharedInformers, apiExtensionsServer.Informers)
 	if err != nil {
 		// we don't need special handling for innerStopCh because the aggregator server doesn't create any go routines
 		return err
@@ -168,8 +162,8 @@ func Run(runOptions *options.ServerRunOptions, stopCh <-chan struct{}) error {
 }
 
 // CreateKubeAPIServer creates and wires a workable kube-apiserver
-func CreateKubeAPIServer(kubeAPIServerConfig *master.Config, delegateAPIServer genericapiserver.DelegationTarget, sharedInformers informers.SharedInformerFactory, crdRESTOptionsGetter genericregistry.RESTOptionsGetter) (*master.Master, error) {
-	kubeAPIServer, err := kubeAPIServerConfig.Complete().New(delegateAPIServer, crdRESTOptionsGetter)
+func CreateKubeAPIServer(kubeAPIServerConfig *master.Config, delegateAPIServer genericapiserver.DelegationTarget, sharedInformers informers.SharedInformerFactory) (*master.Master, error) {
+	kubeAPIServer, err := kubeAPIServerConfig.Complete().New(delegateAPIServer)
 	if err != nil {
 		return nil, err
 	}
@@ -181,53 +175,8 @@ func CreateKubeAPIServer(kubeAPIServerConfig *master.Config, delegateAPIServer g
 	return kubeAPIServer, nil
 }
 
-// CreateNodeDialer creates the dialer infrastructure to connect to the nodes.
-func CreateNodeDialer(s *options.ServerRunOptions) (tunneler.Tunneler, *http.Transport, error) {
-	// Setup nodeTunneler if needed
-	var nodeTunneler tunneler.Tunneler
-	var proxyDialerFn utilnet.DialFunc
-	if len(s.SSHUser) > 0 {
-		// Get ssh key distribution func, if supported
-		var installSSHKey tunneler.InstallSSHKey
-		cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider.CloudProvider, s.CloudProvider.CloudConfigFile)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cloud provider could not be initialized: %v", err)
-		}
-		if cloud != nil {
-			if instances, supported := cloud.Instances(); supported {
-				installSSHKey = instances.AddSSHKeyToAllInstances
-			}
-		}
-		if s.KubeletConfig.Port == 0 {
-			return nil, nil, fmt.Errorf("must enable kubelet port if proxy ssh-tunneling is specified")
-		}
-		if s.KubeletConfig.ReadOnlyPort == 0 {
-			return nil, nil, fmt.Errorf("must enable kubelet readonly port if proxy ssh-tunneling is specified")
-		}
-		// Set up the nodeTunneler
-		// TODO(cjcullen): If we want this to handle per-kubelet ports or other
-		// kubelet listen-addresses, we need to plumb through options.
-		healthCheckPath := &url.URL{
-			Scheme: "http",
-			Host:   net.JoinHostPort("127.0.0.1", strconv.FormatUint(uint64(s.KubeletConfig.ReadOnlyPort), 10)),
-			Path:   "healthz",
-		}
-		nodeTunneler = tunneler.New(s.SSHUser, s.SSHKeyfile, healthCheckPath, installSSHKey)
-
-		// Use the nodeTunneler's dialer when proxying to pods, services, and nodes
-		proxyDialerFn = nodeTunneler.Dial
-	}
-	// Proxying to pods and services is IP-based... don't expect to be able to verify the hostname
-	proxyTLSClientConfig := &tls.Config{InsecureSkipVerify: true}
-	proxyTransport := utilnet.SetTransportDefaults(&http.Transport{
-		Dial:            proxyDialerFn,
-		TLSClientConfig: proxyTLSClientConfig,
-	})
-	return nodeTunneler, proxyTransport, nil
-}
-
 // CreateKubeAPIServerConfig creates all the resources for running the API server, but runs none of them
-func CreateKubeAPIServerConfig(s *options.ServerRunOptions, nodeTunneler tunneler.Tunneler, proxyTransport http.RoundTripper) (*master.Config, informers.SharedInformerFactory, *kubeserver.InsecureServingInfo, error) {
+func CreateKubeAPIServerConfig(s *options.ServerRunOptions) (*master.Config, informers.SharedInformerFactory, *kubeserver.InsecureServingInfo, error) {
 	// register all admission plugins
 	registerAllAdmissionPlugins(s.Admission.Plugins)
 
@@ -259,6 +208,49 @@ func CreateKubeAPIServerConfig(s *options.ServerRunOptions, nodeTunneler tunnele
 			HostIPCSources:     []string{},
 		},
 		PerConnectionBandwidthLimitBytesPerSec: s.MaxConnectionBytesPerSec,
+	})
+
+	// Setup nodeTunneler if needed
+	var nodeTunneler tunneler.Tunneler
+	var proxyDialerFn utilnet.DialFunc
+	if len(s.SSHUser) > 0 {
+		// Get ssh key distribution func, if supported
+		var installSSHKey tunneler.InstallSSHKey
+		cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider.CloudProvider, s.CloudProvider.CloudConfigFile)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("cloud provider could not be initialized: %v", err)
+		}
+		if cloud != nil {
+			if instances, supported := cloud.Instances(); supported {
+				installSSHKey = instances.AddSSHKeyToAllInstances
+			}
+		}
+		if s.KubeletConfig.Port == 0 {
+			return nil, nil, nil, fmt.Errorf("must enable kubelet port if proxy ssh-tunneling is specified")
+		}
+		if s.KubeletConfig.ReadOnlyPort == 0 {
+			return nil, nil, nil, fmt.Errorf("must enable kubelet readonly port if proxy ssh-tunneling is specified")
+		}
+		// Set up the nodeTunneler
+		// TODO(cjcullen): If we want this to handle per-kubelet ports or other
+		// kubelet listen-addresses, we need to plumb through options.
+		healthCheckPath := &url.URL{
+			Scheme: "http",
+			Host:   net.JoinHostPort("127.0.0.1", strconv.FormatUint(uint64(s.KubeletConfig.ReadOnlyPort), 10)),
+			Path:   "healthz",
+		}
+		nodeTunneler = tunneler.New(s.SSHUser, s.SSHKeyfile, healthCheckPath, installSSHKey)
+
+		// Use the nodeTunneler's dialer to connect to the kubelet
+		s.KubeletConfig.Dial = nodeTunneler.Dial
+		// Use the nodeTunneler's dialer when proxying to pods, services, and nodes
+		proxyDialerFn = nodeTunneler.Dial
+	}
+	// Proxying to pods and services is IP-based... don't expect to be able to verify the hostname
+	proxyTLSClientConfig := &tls.Config{InsecureSkipVerify: true}
+	proxyTransport := utilnet.SetTransportDefaults(&http.Transport{
+		Dial:            proxyDialerFn,
+		TLSClientConfig: proxyTLSClientConfig,
 	})
 
 	serviceIPRange, apiServerServiceIP, err := master.DefaultServiceIPRange(s.ServiceClusterIPRange)
@@ -311,11 +303,6 @@ func CreateKubeAPIServerConfig(s *options.ServerRunOptions, nodeTunneler tunnele
 		KubernetesServiceNodePort: s.KubernetesServiceNodePort,
 
 		MasterCount: s.MasterCount,
-	}
-
-	if nodeTunneler != nil {
-		// Use the nodeTunneler's dialer to connect to the kubelet
-		config.KubeletClientConfig.Dial = nodeTunneler.Dial
 	}
 
 	return config, sharedInformers, insecureServingOptions, nil
@@ -384,10 +371,6 @@ func BuildGenericConfig(s *options.ServerRunOptions) (*genericapiserver.Config, 
 		// TODO: get rid of KUBE_API_VERSIONS or define sane behaviour if set
 		glog.Errorf("Failed to create clientset with KUBE_API_VERSIONS=%q. KUBE_API_VERSIONS is only for testing. Things will break.", kubeAPIVersions)
 	}
-	externalClient, err := clientset.NewForConfig(genericConfig.LoopbackClientConfig)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create external clientset: %v", err)
-	}
 	sharedInformers := informers.NewSharedInformerFactory(client, 10*time.Minute)
 
 	genericConfig.Authenticator, genericConfig.OpenAPIConfig.SecurityDefinitions, err = BuildAuthenticator(s, storageFactory, client, sharedInformers)
@@ -406,7 +389,6 @@ func BuildGenericConfig(s *options.ServerRunOptions) (*genericapiserver.Config, 
 	pluginInitializer, err := BuildAdmissionPluginInitializer(
 		s,
 		client,
-		externalClient,
 		sharedInformers,
 		genericConfig.Authorizer,
 	)
@@ -424,7 +406,7 @@ func BuildGenericConfig(s *options.ServerRunOptions) (*genericapiserver.Config, 
 }
 
 // BuildAdmissionPluginInitializer constructs the admission plugin initializer
-func BuildAdmissionPluginInitializer(s *options.ServerRunOptions, client internalclientset.Interface, externalClient clientset.Interface, sharedInformers informers.SharedInformerFactory, apiAuthorizer authorizer.Authorizer) (admission.PluginInitializer, error) {
+func BuildAdmissionPluginInitializer(s *options.ServerRunOptions, client internalclientset.Interface, sharedInformers informers.SharedInformerFactory, apiAuthorizer authorizer.Authorizer) (admission.PluginInitializer, error) {
 	var cloudConfig []byte
 
 	if s.CloudProvider.CloudConfigFile != "" {
@@ -442,21 +424,7 @@ func BuildAdmissionPluginInitializer(s *options.ServerRunOptions, client interna
 	// do not require us to open watches for all items tracked by quota.
 	quotaRegistry := quotainstall.NewRegistry(nil, nil)
 
-	pluginInitializer := kubeapiserveradmission.NewPluginInitializer(client, externalClient, sharedInformers, apiAuthorizer, cloudConfig, restMapper, quotaRegistry)
-
-	// Read client cert/key for plugins that need to make calls out
-	if len(s.ProxyClientCertFile) > 0 && len(s.ProxyClientKeyFile) > 0 {
-		certBytes, err := ioutil.ReadFile(s.ProxyClientCertFile)
-		if err != nil {
-			return nil, err
-		}
-		keyBytes, err := ioutil.ReadFile(s.ProxyClientKeyFile)
-		if err != nil {
-			return nil, err
-		}
-		pluginInitializer = pluginInitializer.SetClientCert(certBytes, keyBytes)
-	}
-
+	pluginInitializer := kubeapiserveradmission.NewPluginInitializer(client, sharedInformers, apiAuthorizer, cloudConfig, restMapper, quotaRegistry)
 	return pluginInitializer, nil
 }
 
@@ -505,9 +473,8 @@ func BuildStorageFactory(s *options.ServerRunOptions) (*serverstorage.DefaultSto
 		return nil, fmt.Errorf("error in initializing storage factory: %s", err)
 	}
 
-	// keep Deployments and NetworkPolicies in extensions for backwards compatibility, we'll have to migrate at some point, eventually
+	// keep Deployments in extensions for backwards compatibility, we'll have to migrate at some point, eventually
 	storageFactory.AddCohabitatingResources(extensions.Resource("deployments"), apps.Resource("deployments"))
-	storageFactory.AddCohabitatingResources(extensions.Resource("networkpolicies"), networking.Resource("networkpolicies"))
 	for _, override := range s.Etcd.EtcdServersOverrides {
 		tokens := strings.Split(override, "#")
 		if len(tokens) != 2 {
@@ -526,16 +493,6 @@ func BuildStorageFactory(s *options.ServerRunOptions) (*serverstorage.DefaultSto
 
 		servers := strings.Split(tokens[1], ";")
 		storageFactory.SetEtcdLocation(groupResource, servers)
-	}
-
-	if s.Etcd.EncryptionProviderConfigFilepath != "" {
-		transformerOverrides, err := encryptionconfig.GetTransformerOverrides(s.Etcd.EncryptionProviderConfigFilepath)
-		if err != nil {
-			return nil, err
-		}
-		for groupResource, transformer := range transformerOverrides {
-			storageFactory.SetTransformer(groupResource, transformer)
-		}
 	}
 
 	return storageFactory, nil
@@ -579,7 +536,7 @@ func defaultOptions(s *options.ServerRunOptions) error {
 		// This is the heuristics that from memory capacity is trying to infer
 		// the maximum number of nodes in the cluster and set cache sizes based
 		// on that value.
-		// From our documentation, we officially recommend 120GB machines for
+		// From our documentation, we officially recomment 120GB machines for
 		// 2000 nodes, and we scale from that point. Thus we assume ~60MB of
 		// capacity per node.
 		// TODO: We may consider deciding that some percentage of memory will

@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"strings"
 
-	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,27 +33,33 @@ import (
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kube-aggregator/pkg/apis/apiregistration"
-	"k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/internalclientset/typed/apiregistration/internalversion"
 	"k8s.io/kube-aggregator/pkg/controllers/autoregister"
+	apiextensionsinformers "k8s.io/kube-apiextensions-server/pkg/client/informers/internalversion"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
 	"k8s.io/kubernetes/pkg/master/thirdparty"
 )
 
-func createAggregatorConfig(kubeAPIServerConfig genericapiserver.Config, commandOptions *options.ServerRunOptions, proxyTransport *http.Transport) (*aggregatorapiserver.Config, error) {
+func createAggregatorConfig(kubeAPIServerConfig genericapiserver.Config, commandOptions *options.ServerRunOptions) (*aggregatorapiserver.Config, error) {
 	// make a shallow copy to let us twiddle a few things
 	// most of the config actually remains the same.  We only need to mess with a couple items related to the particulars of the aggregator
 	genericConfig := kubeAPIServerConfig
 
 	// the aggregator doesn't wire these up.  It just delegates them to the kubeapiserver
 	genericConfig.EnableSwaggerUI = false
+	genericConfig.OpenAPIConfig = nil
 	genericConfig.SwaggerConfig = nil
+
+	// copy the loopbackclientconfig.  We're going to change the contenttype back to json until we get protobuf serializations for it
+	t := *kubeAPIServerConfig.LoopbackClientConfig
+	genericConfig.LoopbackClientConfig = &t
+	genericConfig.LoopbackClientConfig.ContentConfig.ContentType = ""
 
 	// copy the etcd options so we don't mutate originals.
 	etcdOptions := *commandOptions.Etcd
-	etcdOptions.StorageConfig.Codec = aggregatorapiserver.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion)
+	etcdOptions.StorageConfig.Codec = aggregatorapiserver.Codecs.LegacyCodec(schema.GroupVersion{Group: "apiregistration.k8s.io", Version: "v1beta1"})
 	etcdOptions.StorageConfig.Copier = aggregatorapiserver.Scheme
 	genericConfig.RESTOptionsGetter = &genericoptions.SimpleRestOptionsFactory{Options: etcdOptions}
 
@@ -74,17 +79,15 @@ func createAggregatorConfig(kubeAPIServerConfig genericapiserver.Config, command
 			return nil, err
 		}
 	}
-
 	aggregatorConfig := &aggregatorapiserver.Config{
-		GenericConfig:           &genericConfig,
-		CoreAPIServerClient:     client,
-		ProxyClientCert:         certBytes,
-		ProxyClientKey:          keyBytes,
-		ProxyTransport:          proxyTransport,
-		EnableAggregatorRouting: commandOptions.EnableAggregatorRouting,
+		GenericConfig:       &genericConfig,
+		CoreAPIServerClient: client,
+		ProxyClientCert:     certBytes,
+		ProxyClientKey:      keyBytes,
 	}
 
 	return aggregatorConfig, nil
+
 }
 
 func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget, kubeInformers informers.SharedInformerFactory, apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
@@ -120,10 +123,7 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 		for _, apiService := range apiServices {
 			found := false
 			for _, item := range items {
-				if item.Name != apiService.Name {
-					continue
-				}
-				if apiregistration.IsAPIServiceConditionTrue(item, apiregistration.Available) {
+				if item.Name == apiService.Name {
 					found = true
 					break
 				}

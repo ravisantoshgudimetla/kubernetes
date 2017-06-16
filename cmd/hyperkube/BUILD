@@ -8,13 +8,12 @@ load(
     "go_library",
     "go_test",
 )
-load("//pkg/version:def.bzl", "version_x_defs")
 
 go_binary(
     name = "hyperkube",
     library = ":go_default_library",
+    linkstamp = "k8s.io/kubernetes/pkg/version",
     tags = ["automanaged"],
-    x_defs = version_x_defs(),
 )
 
 go_test(

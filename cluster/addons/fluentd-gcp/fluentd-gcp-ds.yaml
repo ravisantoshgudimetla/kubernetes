@@ -24,10 +24,9 @@ spec:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       dnsPolicy: Default
-      hostNetwork: true
       containers:
       - name: fluentd-gcp
-        image: gcr.io/google-containers/fluentd-gcp:2.0.5
+        image: gcr.io/google-containers/fluentd-gcp:2.0.2
         # If fluentd consumes its own logs, the following situation may happen:
         # fluentd fails to send a chunk to the server => writes it to the log =>
         # tries to send this message to the server => fails to send a chunk and so on.
@@ -94,7 +93,6 @@ spec:
         command:
           - /monitor
           - --component=fluentd
-          - --target-port=31337
           - --stackdriver-prefix=container.googleapis.com/internal/addons
           - --whitelisted-metrics=logging_line_count,logging_entry_count
         volumeMounts:
