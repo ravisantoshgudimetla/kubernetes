@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
+	"strconv"
 )
 
 type FailedPredicateMap map[string][]algorithm.PredicateFailureReason
@@ -82,6 +83,8 @@ type genericScheduler struct {
 	cachedNodeInfoMap map[string]*schedulercache.NodeInfo
 }
 
+var resultCache = make(map[string][]*v1.Node)
+
 // Schedule tries to schedule the given pod to one of node in the node list.
 // If it succeeds, it will return the name of the node.
 // If it fails, it will return a Fiterror error with reasons.
@@ -102,20 +105,32 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 	if err != nil {
 		return "", err
 	}
-
 	trace.Step("Computing predicates")
+	podReq := predicates.GetResourceRequest(pod)
+	keyToBeUsed := strconv.FormatInt(podReq.Memory, 20) + strconv.FormatInt(podReq.MilliCPU, 20) + strconv.FormatInt(podReq.NvidiaGPU, 20)
+	if nodeHitList, ok := resultCache[keyToBeUsed]; ok {
+		if len(nodeHitList) > 10 {
+			//fmt.Println(keyToBeUsed)
+			nodes = nodeHitList
+		}
+	}
 	filteredNodes, failedPredicateMap, err := findNodesThatFit(pod, g.cachedNodeInfoMap, nodes, g.predicates, g.extenders, g.predicateMetaProducer, g.equivalenceCache)
+	// Map(Dict) which stores list of filtered nodes for given predicates. This can be much more powerful, if we choose only those nodes that have high priority.
+	// The problem is there needs to be a way to convert priorityList back to nodeList.
+	if len(filteredNodes) > 100 {
+		filteredNodes = filteredNodes[:100]
+	}
+	resultCache[keyToBeUsed] = filteredNodes
+	//fmt.Println(resultCache[keyToBeUsed])
 	if err != nil {
 		return "", err
 	}
-
 	if len(filteredNodes) == 0 {
 		return "", &FitError{
 			Pod:              pod,
 			FailedPredicates: failedPredicateMap,
 		}
 	}
-
 	trace.Step("Prioritizing")
 	metaPrioritiesInterface := g.priorityMetaProducer(pod, g.cachedNodeInfoMap)
 	priorityList, err := PrioritizeNodes(pod, g.cachedNodeInfoMap, metaPrioritiesInterface, g.prioritizers, filteredNodes, g.extenders)
