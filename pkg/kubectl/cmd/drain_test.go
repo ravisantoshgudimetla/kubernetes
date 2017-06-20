@@ -640,7 +640,7 @@ func TestDrain(t *testing.T) {
 				cmd.SetArgs(test.args)
 				cmd.Execute()
 			}()
-
+			//fmt.Println(new_node.Spec.Taints)
 			if test.expectFatal {
 				if !saw_fatal {
 					t.Fatalf("%s: unexpected non-error when using %s", test.description, currMethod)
