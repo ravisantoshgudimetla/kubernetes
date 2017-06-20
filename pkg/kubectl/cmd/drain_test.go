@@ -67,6 +67,7 @@ func TestMain(m *testing.M) {
 		},
 		Spec: api.NodeSpec{
 			ExternalID: "node",
+			Taints: []api.Taint{{Key:"sample", Value:"ABC", Effect:"PreferNoSchedule"}},
 		},
 		Status: api.NodeStatus{},
 	}

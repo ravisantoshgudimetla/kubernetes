@@ -623,6 +623,17 @@ func (o *DrainOptions) RunCordonOrUncordon(desired bool) error {
 
 	if o.nodeInfo.Mapping.GroupVersionKind.Kind == "Node" {
 		unsched := reflect.ValueOf(o.nodeInfo.Object).Elem().FieldByName("Spec").FieldByName("Unschedulable")
+		taintList := reflect.ValueOf(o.nodeInfo.Object).Elem().FieldByName("Spec").FieldByName("Taints")
+		for i := 0; i < taintList.Len(); i++ {
+			//taintKey := taintList.Index(i).Field(0).String()
+			//taintValue := taintList.Index(i).Field(1).String()
+			taintEffect := taintList.Index(i).Field(2)
+			fmt.Println(taintEffect)
+			taintEffect.Set("Sample")
+			fmt.Println(taintEffect)
+			//fmt.Println(taintValue)
+
+		}
 		if unsched.Bool() == desired {
 			cmdutil.PrintSuccess(o.mapper, false, o.Out, o.nodeInfo.Mapping.Resource, o.nodeInfo.Name, false, already(desired))
 		} else {
