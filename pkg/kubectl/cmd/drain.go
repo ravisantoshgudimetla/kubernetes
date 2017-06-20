@@ -629,7 +629,7 @@ func (o *DrainOptions) RunCordonOrUncordon(desired bool) error {
 			//taintValue := taintList.Index(i).Field(1).String()
 			taintEffect := taintList.Index(i).Field(2)
 			fmt.Println(taintEffect)
-			taintEffect.Set("Sample")
+			taintEffect.SetString("Sample")
 			fmt.Println(taintEffect)
 			//fmt.Println(taintValue)
 
