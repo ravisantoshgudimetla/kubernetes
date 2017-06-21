@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"reflect"
+	//"reflect"
 	"strings"
 	"time"
 
@@ -624,46 +624,35 @@ func (o *DrainOptions) RunCordonOrUncordon(desired bool) error {
 	}
 
 	if o.nodeInfo.Mapping.GroupVersionKind.Kind == "Node" {
+		obj, err := o.nodeInfo.Mapping.ConvertToVersion(o.nodeInfo.Object, o.nodeInfo.Mapping.GroupVersionKind.GroupVersion())
+				if err != nil {
+					return err
+				}
+		node, ok := obj.(*v1.Node)
 		// TODO: Need to remove this once we move away from Unschedulable.
-		unsched := reflect.ValueOf(o.nodeInfo.Object).Elem().FieldByName("Spec").FieldByName("Unschedulable")
+		unschedulable = node.Spec.Unschedulable
+		node.Spec.Unschedulable = desired
+			if desired {
+				// Sets the taint.
+				NoScheduleTaint := v1.Taint{Key: "", Value: "", Effect: "NoSchedule"}
+				//taintList = reflect.Append(taintList, reflect.ValueOf(NoScheduleTaint))
 
-		unschedulable = unsched.Bool()
+				if !ok {
+					fmt.Println("Here Type%T", obj)
+					return fmt.Errorf("unexpected Type%T, expected Node", obj)
+				}
 
-		taintList := reflect.ValueOf(o.nodeInfo.Object).Elem().FieldByName("Spec").FieldByName("Taints")
-		for i := 0; i < taintList.Len(); i++ {
-			// To get effect for taint.
-			taintEffect := taintList.Index(i).Field(2)
-			if taintEffect.String() == "NoSchedule" {
-				unschedulable = true
-				break
+				node.Spec.Taints = append(node.Spec.Taints, NoScheduleTaint)
+				fmt.Println(node.Spec.Taints)
 			}
-		}
+		//unsched := reflect.ValueOf(o.nodeInfo.Object).Elem().FieldByName("Spec").FieldByName("Unschedulable")
 		if unschedulable == desired {
 			cmdutil.PrintSuccess(o.mapper, false, o.Out, o.nodeInfo.Mapping.Resource, o.nodeInfo.Name, false, already(desired))
 		} else {
 			helper := resource.NewHelper(o.restClient, o.nodeInfo.Mapping)
 			// TODO: Need to remove this once we move away from Unschedulable.
-			unsched.SetBool(desired)
 
-			if desired {
-				// Sets the taint.
-				NoScheduleTaint := v1.Taint{Key: "", Value: "", Effect: "NoSchedule"}
-				//taintList = reflect.Append(taintList, reflect.ValueOf(NoScheduleTaint))
-				obj, err := o.nodeInfo.Mapping.ConvertToVersion(o.nodeInfo.Object, o.nodeInfo.Mapping.GroupVersionKind.GroupVersion())
-				if err != nil {
-					//fmt.Println("Here")
-					return err
-				}
-				node, ok := obj.(*v1.Node)
-				if !ok {
-					fmt.Println("Here Type%T", obj)
-					return fmt.Errorf("unexpected Type%T, expected Node", obj)
-				}
-				//node.Spec.Unschedulable = tr
-				node.Spec.Taints = append(node.Spec.Taints, NoScheduleTaint)
-				fmt.Println(node.Spec.Taints)
-			}
-			var err error
+			//var err error
 			for i := 0; i < kMaxNodeUpdateRetry; i++ {
 				// We don't care about what previous versions may exist, we always want
 				// to overwrite, and Replace always sets current ResourceVersion if version is "".
