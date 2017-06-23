@@ -170,7 +170,7 @@ func TestCordon(t *testing.T) {
 						t.Fatalf("%s: unexpected error: %v", test.description, err)
 					}
 					if !reflect.DeepEqual(test.expected.Spec, new_node.Spec) {
-						t.Fatalf("%s: expected:\n%v\nsaw:\n%v\n", test.description, test.expected.Spec, new_node.Spec)
+						t.Fatalf("%s: expected:\n%v\nsaw:\n%v\n", test.description, test.expected.Spec.Unschedulable, new_node.Spec.Unschedulable)
 					}
 					updated = true
 					return &http.Response{StatusCode: 200, Header: defaultHeader(), Body: objBody(codec, new_node)}, nil
