@@ -21,7 +21,8 @@ import (
 	"fmt"
 	"io"
 	"math"
-	//"reflect"
+	//	"reflect"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -33,18 +34,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	restclient "k8s.io/client-go/rest"
+
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/apis/policy"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/kubectl"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/kubelet/types"
+	ktypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/util/i18n"
-	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 type DrainOptions struct {
@@ -355,7 +359,7 @@ func (o *DrainOptions) daemonsetFilter(pod api.Pod) (bool, *warning, *fatal) {
 }
 
 func mirrorPodFilter(pod api.Pod) (bool, *warning, *fatal) {
-	if _, found := pod.ObjectMeta.Annotations[types.ConfigMirrorAnnotationKey]; found {
+	if _, found := pod.ObjectMeta.Annotations[ktypes.ConfigMirrorAnnotationKey]; found {
 		return false, nil, nil
 	}
 	return true, nil, nil
@@ -617,51 +621,47 @@ func SupportEviction(clientset internalclientset.Interface) (string, error) {
 // RunCordonOrUncordon runs either Cordon or Uncordon.  The desired value for
 // "Unschedulable" is passed as the first arg.
 func (o *DrainOptions) RunCordonOrUncordon(desired bool) error {
-	//cmdNamespace, _, err := o.Factory.DefaultNamespace()
-	//var unschedulable bool
-	//if err != nil {
-	//	return err
-	//}
+	cmdNamespace, _, err := o.Factory.DefaultNamespace()
+	if err != nil {
+		return err
+	}
 
 	if o.nodeInfo.Mapping.GroupVersionKind.Kind == "Node" {
+		//unsched := reflect.ValueOf(o.nodeInfo.Object).Elem().FieldByName("Spec").FieldByName("Unschedulable")
 		obj, err := o.nodeInfo.Mapping.ConvertToVersion(o.nodeInfo.Object, o.nodeInfo.Mapping.GroupVersionKind.GroupVersion())
-				if err != nil {
-					return err
-				}
+		if err != nil {
+			return err
+		}
+		oldData, err := json.Marshal(obj)
 		node, ok := obj.(*v1.Node)
 		if !ok {
-					fmt.Println("Here Type%T", obj)
-					return fmt.Errorf("unexpected Type%T, expected Node", obj)
+			fmt.Println("Here Type%T", obj)
+			return fmt.Errorf("unexpected Type%T, expected Node", obj)
 		}
 		// TODO: Need to remove this once we move away from Unschedulable.
+
 		unschedulable := node.Spec.Unschedulable
-		/*node.Spec.Unschedulable = desired
-			if desired {
-				// Sets the taint.
-				NoScheduleTaint := v1.Taint{Key: "", Value: "", Effect: "NoSchedule"}
-				//taintList = reflect.Append(taintList, reflect.ValueOf(NoScheduleTaint))
-
-
-
-				node.Spec.Taints = append(node.Spec.Taints, NoScheduleTaint)
-				fmt.Println(node.Spec.Taints)
-			}*/
-		//unsched := reflect.ValueOf(o.nodeInfo.Object).Elem().FieldByName("Spec").FieldByName("Unschedulable")
-		//fmt.Println(unsched.IsNil())
+		//fmt.Println(unschedulable, desired, unsched)
 		if unschedulable == desired {
 			cmdutil.PrintSuccess(o.mapper, false, o.Out, o.nodeInfo.Mapping.Resource, o.nodeInfo.Name, false, already(desired))
 		} else {
-			//helper := resource.NewHelper(o.restClient, o.nodeInfo.Mapping)
+			helper := resource.NewHelper(o.restClient, o.nodeInfo.Mapping)
 			// TODO: Need to remove this once we move away from Unschedulable.
 			//unsched.SetBool(desired)
-
+			node.Spec.Unschedulable = desired
 			var err error
-			for i := 0; i < kMaxNodeUpdateRetry; i++ {
+			newData, err := json.Marshal(obj)
+			patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, obj)
+			if err != nil {
+				return err
+			}
+			_, err = helper.Patch(cmdNamespace, o.nodeInfo.Name, types.StrategicMergePatchType, patchBytes)
+			/*for i := 0; i < kMaxNodeUpdateRetry; i++ {
 				// We don't care about what previous versions may exist, we always want
 				// to overwrite, and Replace always sets current ResourceVersion if version is "".
-				//helper.Versioner.SetResourceVersion(o.nodeInfo.Object, "")
-				//_, err = helper.Replace(cmdNamespace, o.nodeInfo.Name, true, o.nodeInfo.Object)
-				node.Spec.Unschedulable = desired
+				helper.Versioner.SetResourceVersion(o.nodeInfo.Object, "")
+				_, err = helper.Replace(cmdNamespace, o.nodeInfo.Name, true, o.nodeInfo.Object)
+
 				if err != nil {
 					if !apierrors.IsConflict(err) {
 						return err
@@ -670,11 +670,13 @@ func (o *DrainOptions) RunCordonOrUncordon(desired bool) error {
 					break
 				}
 				// It's a race, no need to sleep
-			}
+			}*/
+			//mapper, _ := o.nodeInfo.Object
 			if err != nil {
 				return err
 			}
 			cmdutil.PrintSuccess(o.mapper, false, o.Out, o.nodeInfo.Mapping.Resource, o.nodeInfo.Name, false, changed(desired))
+			//fmt.Println(node.Spec.Unschedulable)
 		}
 	} else {
 		cmdutil.PrintSuccess(o.mapper, false, o.Out, o.nodeInfo.Mapping.Resource, o.nodeInfo.Name, false, "skipped")
