@@ -964,6 +964,11 @@ func (c *TestPodCreator) CreatePods() error {
 	return nil
 }
 
+// readRandomlyGeneratedDataFromFile reads the whole into memory at a time and then
+func readRandomlyGeneratedDataFromFile() {
+
+}
+
 func MakePodSpec() v1.PodSpec {
 	return v1.PodSpec{
 		Containers: []v1.Container{{
