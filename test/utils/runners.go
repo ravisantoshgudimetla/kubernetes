@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,8 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubernetes/pkg/api"
+	//"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubernetes/pkg/api/v1"
 	batchinternal "k8s.io/kubernetes/pkg/apis/batch"
 	batch "k8s.io/kubernetes/pkg/apis/batch/v1"
@@ -44,6 +45,7 @@ import (
 	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
+	"bufio"
 	"github.com/golang/glog"
 )
 
@@ -964,6 +966,41 @@ func (c *TestPodCreator) CreatePods() error {
 	return nil
 }
 
+// readRandomlyGeneratedDataFromFile reads the whole into memory at a time and returns the memory and cpu to be used for container.
+func readRandomlyGeneratedDataFromFile() (map[int][]string, error) {
+	fmt.Println("File not opening")
+	// Replace it with os.getCwd() and append string.
+	file, err := os.Open("/home/ravig/go/src/k8s.io/kubernetes/test/utils/sample.txt")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	count := 0
+	resourceDict := make(map[int][]string)
+	cpuDefault := "0m"
+	memDefault := "0m"
+	for scanner.Scan() {
+		tokens := strings.Split(scanner.Text(), ",")
+		cpu := strings.Split(tokens[0], " ")[1]
+		memory := strings.Split(tokens[1], " ")[1]
+		if cpu == "" {
+			cpu = cpuDefault
+		}
+		if memory == "" {
+			memory = memDefault
+		}
+		resourceDict[count] = []string{cpu, memory}
+		count++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	//fmt.Println("read File")
+	return resourceDict, nil
+}
+
 func MakePodSpec() v1.PodSpec {
 	return v1.PodSpec{
 		Containers: []v1.Container{{
@@ -998,19 +1035,49 @@ func makeCreatePod(client clientset.Interface, namespace string, podTemplate *v1
 func createPod(client clientset.Interface, namespace string, podCount int, podTemplate *v1.Pod) error {
 	var createError error
 	lock := sync.Mutex{}
-	createPodFunc := func(i int) {
+	resourceDict, err := readRandomlyGeneratedDataFromFile()
+	if err != nil {
+		return fmt.Errorf("Problem while reading from file: %v", err)
+	}
+	for _, v := range resourceDict {
+		cpu := v[0]
+		memory := v[1]
+		podTemplate.Spec.Containers = []v1.Container{{
+			Name:  "pause",
+			Image: "kubernetes/pause",
+			Ports: []v1.ContainerPort{{ContainerPort: 80}},
+			Resources: v1.ResourceRequirements{
+				Limits: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse(cpu),
+					v1.ResourceMemory: resource.MustParse(memory),
+				},
+				Requests: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse(cpu),
+					v1.ResourceMemory: resource.MustParse(memory),
+				},
+			},
+		}}
 		if err := makeCreatePod(client, namespace, podTemplate); err != nil {
 			lock.Lock()
 			defer lock.Unlock()
 			createError = err
+
 		}
 	}
 
+	/*createPodFunc := func(i int) {
+		if err := makeCreatePod(client, namespace, podTemplate); err != nil {
+			lock.Lock()
+			defer lock.Unlock()
+			createError = err
+
+		}
+	}
 	if podCount < 30 {
 		workqueue.Parallelize(podCount, podCount, createPodFunc)
 	} else {
 		workqueue.Parallelize(30, podCount, createPodFunc)
-	}
+	}*/
 	return createError
 }
 

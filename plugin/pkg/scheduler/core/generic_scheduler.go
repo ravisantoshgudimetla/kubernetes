@@ -33,6 +33,8 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
+	"os"
+	"strconv"
 )
 
 type FailedPredicateMap map[string][]algorithm.PredicateFailureReason
@@ -82,14 +84,18 @@ type genericScheduler struct {
 	cachedNodeInfoMap map[string]*schedulercache.NodeInfo
 }
 
+//var resultCache = make(map[string][]*v1.Node)
+var count int=0
+var avgScore int=0
+
 // Schedule tries to schedule the given pod to one of node in the node list.
 // If it succeeds, it will return the name of the node.
 // If it fails, it will return a Fiterror error with reasons.
 func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister) (string, error) {
 	trace := utiltrace.New(fmt.Sprintf("Scheduling %s/%s", pod.Namespace, pod.Name))
 	defer trace.LogIfLong(100 * time.Millisecond)
-
 	nodes, err := nodeLister.List()
+	count++
 	if err != nil {
 		return "", err
 	}
@@ -102,20 +108,31 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 	if err != nil {
 		return "", err
 	}
-
 	trace.Step("Computing predicates")
+	podReq := predicates.GetResourceRequest(pod)
+	keyToBeUsed := strconv.FormatInt(podReq.Memory, 10) + strconv.FormatInt(podReq.MilliCPU, 10) + strconv.FormatInt(podReq.NvidiaGPU, 10)
+	/*if nodeHitList, ok := resultCache[keyToBeUsed]; ok {
+		if len(nodeHitList) > 10 {
+			//fmt.Println(keyToBeUsed)
+			nodes = nodeHitList
+		}
+	}*/
 	filteredNodes, failedPredicateMap, err := findNodesThatFit(pod, g.cachedNodeInfoMap, nodes, g.predicates, g.extenders, g.predicateMetaProducer, g.equivalenceCache)
+	// Map(Dict) which stores list of filtered nodes for given predicates. This can be much more powerful, if we choose only those nodes that have high priority.
+	// The problem is there needs to be a way to convert priorityList back to nodeList.
+	if len(filteredNodes) > 100 {
+		filteredNodes = filteredNodes[:100]
+	}
+	//resultCache[keyToBeUsed] = filteredNodes
 	if err != nil {
 		return "", err
 	}
-
 	if len(filteredNodes) == 0 {
 		return "", &FitError{
 			Pod:              pod,
 			FailedPredicates: failedPredicateMap,
 		}
 	}
-
 	trace.Step("Prioritizing")
 	metaPrioritiesInterface := g.priorityMetaProducer(pod, g.cachedNodeInfoMap)
 	priorityList, err := PrioritizeNodes(pod, g.cachedNodeInfoMap, metaPrioritiesInterface, g.prioritizers, filteredNodes, g.extenders)
@@ -124,7 +141,25 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 	}
 
 	trace.Step("Selecting host")
-	return g.selectHost(priorityList)
+	// Hard coded as of now, need to remove them.
+	if _, err := os.Stat("/home/ravig/sample/output1.txt"); os.IsNotExist(err) {
+		file, err := os.Create("/home/ravig/sample/output1.txt")
+		if err != nil {
+			return "",fmt.Errorf("File creation failed.")
+		}
+		defer file.Close()
+	}
+	file, err := os.OpenFile("/home/ravig/sample/output1.txt", os.O_RDWR | os.O_APPEND, 0775)
+	if err != nil {
+		return "",fmt.Errorf("Failed to open file.")
+	}
+	defer file.Close()
+	hostSelected, err := g.selectHost(priorityList)
+	// Avg score computation.
+	avgScore += hostSelected.Score
+	avgScore = avgScore/count
+	fmt.Fprintln(file, keyToBeUsed + " , " + hostSelected.Host + " , " + strconv.Itoa(hostSelected.Score) + " " + strconv.Itoa(avgScore))
+	return hostSelected.Host, err
 }
 
 // Prioritizers returns a slice containing all the scheduler's priority
@@ -141,9 +176,9 @@ func (g *genericScheduler) Predicates() map[string]algorithm.FitPredicate {
 
 // selectHost takes a prioritized list of nodes and then picks one
 // in a round-robin manner from the nodes that had the highest score.
-func (g *genericScheduler) selectHost(priorityList schedulerapi.HostPriorityList) (string, error) {
+func (g *genericScheduler) selectHost(priorityList schedulerapi.HostPriorityList) (schedulerapi.HostPriority, error) {
 	if len(priorityList) == 0 {
-		return "", fmt.Errorf("empty priorityList")
+		return schedulerapi.HostPriority{Host:"", Score:0}, fmt.Errorf("empty priorityList")
 	}
 
 	sort.Sort(sort.Reverse(priorityList))
@@ -154,8 +189,7 @@ func (g *genericScheduler) selectHost(priorityList schedulerapi.HostPriorityList
 	ix := int(g.lastNodeIndex % uint64(firstAfterMaxScore))
 	g.lastNodeIndex++
 	g.lastNodeIndexLock.Unlock()
-
-	return priorityList[ix].Host, nil
+	return priorityList[ix], nil
 }
 
 // Filters the nodes to find the ones that fit based on the given predicate functions

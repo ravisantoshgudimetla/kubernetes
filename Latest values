@@ -1,0 +1,73 @@
+
+1k:
+Scheduled 30000 Pods in 76 seconds (394 per second on average). min QPS was 0
+--- FAIL: TestSchedule100Node3KPods (92.18s)
+	scheduler_test.go:49: Failing: Scheduling rate was too low for an interval, we saw rate of 0, which is the allowed minimum of 30 ! 
+FAIL
+exit status 1
+FAIL	k8s.io/kubernetes/test/integration/scheduler_perf	92.315s(122.996)
+!!! Error in ./test-performance.sh:51
+  Error in ./test-performance.sh:51. 'go test -test.run=. -test.timeout=60m -test.short=false' exited with status 1
+Call stack:
+
+2k:
+Scheduled 30000 Pods in 101 seconds (297 per second on average). min QPS was 0
+--- FAIL: TestSchedule100Node3KPods (119.82s)
+	scheduler_test.go:49: Failing: Scheduling rate was too low for an interval, we saw rate of 0, which is the allowed minimum of 30 ! 
+FAIL
+exit status 1
+FAIL	k8s.io/kubernetes/test/integration/scheduler_perf	119.946s(241.862)
+!!! Error in ./test-performance.sh:51
+  Error in ./test-performance.sh:51. 'go test -test.run=. -test.timeout=60m -test.short=false' exited with status 1
+Call stack:
+  1: ./test-performance.sh:51 main(...)
+Exiting with status 1
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
+
+3k:
+Scheduled 30000 Pods in 145 seconds (206 per second on average). min QPS was 0
+--- FAIL: TestSchedule100Node3KPods (167.33s)
+	scheduler_test.go:49: Failing: Scheduling rate was too low for an interval, we saw rate of 0, which is the allowed minimum of 30 ! 
+FAIL
+exit status 1
+FAIL	k8s.io/kubernetes/test/integration/scheduler_perf	167.461s(339.089)
+!!! Error in ./test-performance.sh:51
+  Error in ./test-performance.sh:51. 'go test -test.run=. -test.timeout=60m -test.short=false' exited with status 1
+Call stack:
+  1: ./test-performance.sh:51 main(...)
+Exiting with status 1
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0620 22:41:50] performance test cleanup complete
+
+
+Scheduled 30000 Pods in 202 seconds (148 per second on average). min QPS was 0
+--- FAIL: TestSchedule100Node3KPods (228.19s)
+	scheduler_test.go:49: Failing: Scheduling rate was too low for an interval, we saw rate of 0, which is the allowed minimum of 30 ! 
+FAIL
+exit status 1
+FAIL	k8s.io/kubernetes/test/integration/scheduler_perf	228.324s(450.096)
+!!! Error in ./test-performance.sh:51
+  Error in ./test-performance.sh:51. 'go test -test.run=. -test.timeout=60m -test.short=false' exited with status 1
+Call stack:
+  1: ./test-performance.sh:51 main(...)
+Exiting with status 1
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0620 22:46:20] performance test cleanup complete
+
+Scheduled 30000 Pods in 261 seconds (114 per second on average). min QPS was 0
+--- FAIL: TestSchedule100Node3KPods (291.23s)
+	scheduler_test.go:49: Failing: Scheduling rate was too low for an interval, we saw rate of 0, which is the allowed minimum of 30 ! 
+FAIL
+exit status 1
+FAIL	k8s.io/kubernetes/test/integration/scheduler_perf	291.367s(556.394)
+!!! Error in ./test-performance.sh:51
+  Error in ./test-performance.sh:51. 'go test -test.run=. -test.timeout=60m -test.short=false' exited with status 1
+Call stack:
+  1: ./test-performance.sh:51 main(...)
+Exiting with status 1
+~/go/src/k8s.io/kubernetes/_output/local/go/src/k8s.io/kubernetes/test/integration/scheduler_perf
++++ [0620 22:53:37] performance test cleanup complete
+
+
+
+

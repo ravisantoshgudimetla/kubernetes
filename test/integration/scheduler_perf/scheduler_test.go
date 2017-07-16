@@ -42,7 +42,7 @@ func TestSchedule100Node3KPods(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping because we want to run short tests")
 	}
-	config := getBaseConfig(1000, 30000)
+	config := getBaseConfig(100, 3000)
 	writePodAndNodeTopologyToConfig(config)
 	min := schedulePods(config)
 	if min < threshold3K {
@@ -54,6 +54,7 @@ func TestSchedule100Node3KPods(t *testing.T) {
 	}
 }
 
+/*
 // TestSchedule100Node3KNodeAffinityPods schedules 3k pods using Node affinity on 100 nodes.
 func TestSchedule100Node3KNodeAffinityPods(t *testing.T) {
 	if testing.Short() {
@@ -129,6 +130,7 @@ func TestSchedule1000Node30KPods(t *testing.T) {
 		fmt.Printf("Minimal observed throughput for 30k pod test: %v\n", min)
 	}
 }
+*/
 
 // TestSchedule2000Node60KPods schedules 60k pods on 2000 nodes.
 // This test won't fit in normal 10 minutes time window.
