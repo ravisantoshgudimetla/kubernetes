@@ -968,7 +968,6 @@ func (c *TestPodCreator) CreatePods() error {
 
 // readRandomlyGeneratedDataFromFile reads the whole into memory at a time and returns the memory and cpu to be used for container.
 func readRandomlyGeneratedDataFromFile() (map[int][]string, error) {
-	fmt.Println("File not opening")
 	// Replace it with os.getCwd() and append string.
 	file, err := os.Open("/home/ravig/go/src/k8s.io/kubernetes/test/utils/sample.txt")
 	if err != nil {
