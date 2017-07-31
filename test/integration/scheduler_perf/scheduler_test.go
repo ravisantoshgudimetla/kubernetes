@@ -44,6 +44,7 @@ func TestSchedule100Node3KPods(t *testing.T) {
 	}
 	config := getBaseConfig(100, 3000)
 	writePodAndNodeTopologyToConfig(config)
+	readFromFileandFillStruct()
 	min := schedulePods(config)
 	if min < threshold3K {
 		t.Errorf("Failing: Scheduling rate was too low for an interval, we saw rate of %v, which is the allowed minimum of %v ! ", min, threshold3K)
@@ -176,6 +177,20 @@ func getBaseConfig(nodes int, pods int) *testConfig {
 	return config
 }
 
+
+// readsFromFile and creates the struct of format
+func readFromFileandFillStruct(){
+
+
+
+}
+
+// getPods gets the pod after reading from file one by one.
+func getPods() {
+
+
+}
+
 // schedulePods schedules specific number of pods on specific number of nodes.
 // This is used to learn the scheduling throughput on various
 // sizes of cluster and changes as more and more pods are scheduled.
@@ -196,7 +211,7 @@ func schedulePods(config *testConfig) int32 {
 	start := time.Now()
 
 	// Bake in time for the first pod scheduling event.
-	for {
+	/*for {
 		time.Sleep(50 * time.Millisecond)
 		scheduled, err := config.schedulerSupportFunctions.GetScheduledPodLister().List(labels.Everything())
 		if err != nil {
@@ -207,12 +222,19 @@ func schedulePods(config *testConfig) int32 {
 		if len(scheduled) > config.numPods/100 {
 			break
 		}
-	}
+	}*/
 	// map minimum QPS entries in a counter, useful for debugging tests.
 	qpsStats := map[int]int{}
 
 	// Now that scheduling has started, lets start taking the pulse on how many pods are happening per second.
 	for {
+		// get pods here one by one from the data structure created from the file
+		// along with operation if the operation is create, create pod here or if it is delete
+		// delete the pod here and in the list of scheduled for verification check if the pod exists or
+		// doesn't.
+
+
+
 		// This can potentially affect performance of scheduler, since List() is done under mutex.
 		// Listing 10000 pods is an expensive operation, so running it frequently may impact scheduler.
 		// TODO: Setup watch on apiserver and wait until all pods scheduled.

@@ -966,8 +966,11 @@ func (c *TestPodCreator) CreatePods() error {
 	return nil
 }
 
-// readRandomlyGeneratedDataFromFile reads the whole into memory at a time and returns the memory and cpu to be used for container.
-func readRandomlyGeneratedDataFromFile() (map[int][]string, error) {
+// readFromTrace reads the whole into memory at a time and returns the memory and cpu to be used for container.
+// The trace should of format given in sample.txt, which is in github.
+// A sample entry should be:
+// START_TIME=600000000,END_TIME=900000000,MEM=137Mi,CPU=51m
+func readFromTraceFile() (map[int][]string, error) {
 	// Replace it with os.getCwd() and append string.
 	file, err := os.Open("/home/ravig/go/src/k8s.io/kubernetes/test/utils/sample.txt")
 	if err != nil {
@@ -981,8 +984,8 @@ func readRandomlyGeneratedDataFromFile() (map[int][]string, error) {
 	memDefault := "0m"
 	for scanner.Scan() {
 		tokens := strings.Split(scanner.Text(), ",")
-		cpu := strings.Split(tokens[0], " ")[1]
-		memory := strings.Split(tokens[1], " ")[1]
+		cpu := strings.Split(tokens[0], " ")[2]
+		memory := strings.Split(tokens[1], " ")[3]
 		if cpu == "" {
 			cpu = cpuDefault
 		}
@@ -1034,7 +1037,7 @@ func makeCreatePod(client clientset.Interface, namespace string, podTemplate *v1
 func createPod(client clientset.Interface, namespace string, podCount int, podTemplate *v1.Pod) error {
 	var createError error
 	lock := sync.Mutex{}
-	resourceDict, err := readRandomlyGeneratedDataFromFile()
+	resourceDict, err := readFromTraceFile()
 	if err != nil {
 		return fmt.Errorf("Problem while reading from file: %v", err)
 	}
