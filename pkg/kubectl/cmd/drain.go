@@ -65,6 +65,7 @@ type DrainOptions struct {
 	Out                io.Writer
 	ErrOut             io.Writer
 	typer              runtime.ObjectTyper
+	selector           string
 }
 
 // Takes a pod and returns a bool indicating whether or not to operate on the
@@ -111,6 +112,7 @@ func NewCmdCordon(f cmdutil.Factory, out io.Writer) *cobra.Command {
 			cmdutil.CheckErr(options.RunCordonOrUncordon(true))
 		},
 	}
+	cmd.Flags().StringVarP(&options.selector, "selector", "l", "", "Selector (label query) to filter on, supports '=', '==', and '!='.")
 	return cmd
 }
 
@@ -136,6 +138,7 @@ func NewCmdUncordon(f cmdutil.Factory, out io.Writer) *cobra.Command {
 			cmdutil.CheckErr(options.RunCordonOrUncordon(false))
 		},
 	}
+	cmd.Flags().StringVarP(&options.selector, "selector", "l", "", "Selector (label query) to filter on, supports '=', '==', and '!='.")
 	return cmd
 }
 
@@ -198,10 +201,11 @@ func NewCmdDrain(f cmdutil.Factory, out, errOut io.Writer) *cobra.Command {
 // arguments and looks up the node using Builder
 func (o *DrainOptions) SetupDrain(cmd *cobra.Command, args []string) error {
 	var err error
-	if len(args) != 1 {
-		return cmdutil.UsageErrorf(cmd, "USAGE: %s [flags]", cmd.Use)
+	if o.selector == "" {
+		if len(args) != 1 {
+			return cmdutil.UsageErrorf(cmd, "USAGE: %s [flags]", cmd.Use)
+		}
 	}
-
 	if o.client, err = o.Factory.ClientSet(); err != nil {
 		return err
 	}
@@ -217,12 +221,16 @@ func (o *DrainOptions) SetupDrain(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	r := o.Factory.NewBuilder(true).
-		NamespaceParam(cmdNamespace).DefaultNamespace().
-		ResourceNames("node", args[0]).
-		Do()
-
+	var r *resource.Result
+	if o.selector != "" {
+		r = o.Factory.NewBuilder(true).NamespaceParam(cmdNamespace).
+			DefaultNamespace().SelectorParam(o.selector).ResourceTypes("node").Do()
+	} else {
+		r = o.Factory.NewBuilder(true).
+			NamespaceParam(cmdNamespace).DefaultNamespace().
+			ResourceNames("node", args[0]).
+			Do()
+	}
 	if err = r.Err(); err != nil {
 		return err
 	}
