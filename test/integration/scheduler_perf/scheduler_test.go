@@ -44,7 +44,10 @@ func TestSchedule100Node3KPods(t *testing.T) {
 	}
 	config := getBaseConfig(100, 3000)
 	writePodAndNodeTopologyToConfig(config)
-	readFromFileandFillStruct()
+	if err := readFromFile(); err !=nil {
+		t.Errorf("Error reading from file")
+	}
+
 	min := schedulePods(config)
 	if min < threshold3K {
 		t.Errorf("Failing: Scheduling rate was too low for an interval, we saw rate of %v, which is the allowed minimum of %v ! ", min, threshold3K)
@@ -178,19 +181,6 @@ func getBaseConfig(nodes int, pods int) *testConfig {
 }
 
 
-// readsFromFile and creates the struct of format
-func readFromFileandFillStruct(){
-
-
-
-}
-
-// getPods gets the pod after reading from file one by one.
-func getPods() {
-
-
-}
-
 // schedulePods schedules specific number of pods on specific number of nodes.
 // This is used to learn the scheduling throughput on various
 // sizes of cluster and changes as more and more pods are scheduled.
@@ -201,8 +191,41 @@ func schedulePods(config *testConfig) int32 {
 	if err := config.nodePreparer.PrepareNodes(); err != nil {
 		glog.Fatalf("%v", err)
 	}
+	for _ , timeNow:= range timeList {
+		if timeNow != float64(0) {
+			podsToDelete := getPodsToDelete(timeNow)
+			podsToCreate := getPodsToCreate(timeNow)
+			// Both pod deletion and creation could be parallelized.
+			// First delete all the pods that are not needed.
+			for _, pod := range podsToDelete {
+				deletePod(pod)
+			}
+			var podList []*v1.Pod
+			// Create all the pods needed for this iteration.
+			for _, pod := range podsToCreate {
+				// If there is no error for pod creation add it to
+				// pod list.
+				pod := createPod(pod)
+				podList := append(podList, pod)
+			}
+			for {
+				start := time.Now()
+				scheduled, err := config.schedulerSupportFunctions.GetScheduledPodLister().List(labels.Everything())
+				if err != nil {
+					glog.Fatalf("%v", err)
+				}
+				if len(podList) == len(scheduled) {
+					break
+				}
+				time.Since(start)
+			}
+			// List all the pods scheduled in infinite loop. Find if all the pods to be created are present
+			// in this list and then break.
+
+		}
+	}
 	defer config.nodePreparer.CleanupNodes()
-	config.podCreator.CreatePods()
+		config.podCreator.CreatePods()
 
 	prev := 0
 	// On startup there may be a latent period where NO scheduling occurs (qps = 0).

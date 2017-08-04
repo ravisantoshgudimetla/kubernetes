@@ -19,6 +19,10 @@ package benchmark
 import (
 	"net/http"
 	"net/http/httptest"
+	"bufio"
+	"os"
+	"strings"
+	"strconv"
 
 	"github.com/golang/glog"
 	clientv1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -33,6 +37,7 @@ import (
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 	"k8s.io/kubernetes/test/integration/framework"
+
 )
 
 // mustSetupScheduler starts the following components:
@@ -99,3 +104,105 @@ func mustSetupScheduler() (schedulerConfigurator scheduler.Configurator, destroy
 	}
 	return
 }
+
+
+
+type podInfo struct {
+	podName   string
+	startTime float64
+	endTime   float64
+	memory    string
+	cpu       string
+}
+
+
+// To hold all the pods read from file.
+// TODO: As of now, reads a maximum of 3000, need to change it to read from whole values.
+var podInfoList = make([]podInfo, 3000)
+
+// To hold all the times available in file.
+// TODO: As of now, reads a maximum of 3000, need to change it to read from whole values.
+var timeList = make([]float64, 3000)
+
+// The approach seems terrible as we are doing multiple reads of same file in each function. Ideal case would be to read
+// once from file and fill all the datastructures we need.
+func readFromFile() error {
+	// Replace it with os.getCwd() and append string.
+	file, err := os.Open("readFileUpdated.txt")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+
+	count := 0
+	cpuDefault := "0m"
+	memDefault := "0m"
+	for scanner.Scan() {
+		tokens := strings.Split(scanner.Text(), ",")
+		podInfoList[count].podName = "podName" + strconv.Itoa(count)
+		startTime, _ := strconv.ParseFloat(strings.Split(tokens[0], "=")[1],0)
+		podInfoList[count].startTime = startTime
+		endTime, _ := strconv.ParseFloat(strings.Split(tokens[1], "=")[1],0)
+		podInfoList[count].endTime = endTime
+		podInfoList[count].memory = strings.Split(tokens[2], "=")[1]
+		podInfoList[count].cpu = strings.Split(tokens[3], "=")[1]
+		if podInfoList[count].cpu == "" {
+			podInfoList[count].cpu = cpuDefault
+		}
+		if podInfoList[count].memory == "" {
+			podInfoList[count].memory = memDefault
+		}
+		updateTimeList(podInfoList[count].startTime, podInfoList[count].endTime)
+		count++
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// exists checks if the item exists in the slice.
+func exists(time float64) bool {
+	for _, v := range timeList {
+		if v == time {
+			return true
+		}
+	}
+	return false
+}
+
+// updateTimeList updates the global timelist. This could be improved further.
+func updateTimeList(startTime float64, endTime float64) {
+	if !exists(startTime) {
+		timeList = append(timeList, startTime)
+	}
+	if !exists(endTime) {
+		timeList = append(timeList, endTime)
+	}
+	return
+}
+
+// getPodsToCreate gets all the pods to create at the given time t1.
+func getPodsToCreate(time float64) []podInfo {
+	var podsToCreate []podInfo
+	for _, v := range podInfoList {
+		if v.startTime == time {
+			podsToCreate = append(podsToCreate, v)
+		}
+	}
+	return podsToCreate
+}
+
+// getPodsToDelete deletes the pods at the given time t2.
+func getPodsToDelete(time float64) []podInfo{
+	var podsToDelete []podInfo
+	for _, v := range podInfoList {
+		if v.endTime == time {
+			podsToDelete = append(podsToDelete, v)
+		}
+	}
+	return podsToDelete
+
+}
+
