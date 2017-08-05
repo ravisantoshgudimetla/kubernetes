@@ -66,6 +66,7 @@ type DrainOptions struct {
 	ErrOut             io.Writer
 	typer              runtime.ObjectTyper
 	selector           string
+	builder            *resource.Builder
 }
 
 // Takes a pod and returns a bool indicating whether or not to operate on the
@@ -194,6 +195,7 @@ func NewCmdDrain(f cmdutil.Factory, out, errOut io.Writer) *cobra.Command {
 	cmd.Flags().BoolVar(&options.DeleteLocalData, "delete-local-data", false, "Continue even if there are pods using emptyDir (local data that will be deleted when the node is drained).")
 	cmd.Flags().IntVar(&options.GracePeriodSeconds, "grace-period", -1, "Period of time in seconds given to each pod to terminate gracefully. If negative, the default value specified in the pod will be used.")
 	cmd.Flags().DurationVar(&options.Timeout, "timeout", 0, "The length of time to wait before giving up, zero means infinite")
+	cmd.Flags().StringVarP(&options.selector, "selector", "l", "", "Selector (label query) to filter on, supports '=', '==', and '!='.")
 	return cmd
 }
 
@@ -224,7 +226,7 @@ func (o *DrainOptions) SetupDrain(cmd *cobra.Command, args []string) error {
 	var r *resource.Result
 	if o.selector != "" {
 		r = o.Factory.NewBuilder(true).NamespaceParam(cmdNamespace).
-			DefaultNamespace().SelectorParam(o.selector).ResourceTypes("node").Do()
+			DefaultNamespace().SelectorParam(o.selector).ResourceTypes("node").Flatten().Latest().Do()
 	} else {
 		r = o.Factory.NewBuilder(true).
 			NamespaceParam(cmdNamespace).DefaultNamespace().
