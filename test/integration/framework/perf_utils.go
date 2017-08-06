@@ -45,6 +45,7 @@ func NewIntegrationTestNodePreparer(client clientset.Interface, countToStrategy 
 	}
 }
 
+
 func (p *IntegrationTestNodePreparer) PrepareNodes() error {
 	numNodes := 0
 	for _, v := range p.countToStrategy {
@@ -63,8 +64,8 @@ func (p *IntegrationTestNodePreparer) PrepareNodes() error {
 		Status: v1.NodeStatus{
 			Capacity: v1.ResourceList{
 				v1.ResourcePods:   *resource.NewQuantity(110, resource.DecimalSI),
-				v1.ResourceCPU:    resource.MustParse("4"),
-				v1.ResourceMemory: resource.MustParse("32Gi"),
+				v1.ResourceCPU:    resource.MustParse("16"),
+				v1.ResourceMemory: resource.MustParse("1Gi"),
 			},
 			Phase: v1.NodeRunning,
 			Conditions: []v1.NodeCondition{

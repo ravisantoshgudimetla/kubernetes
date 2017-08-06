@@ -116,6 +116,25 @@ type podInfo struct {
 }
 
 
+var noOfEntries int64
+
+func getEntriesInFile() error {
+	// Replace it with os.getCwd() and append string.
+	file, err := os.Open("/home/ravig/Projects/Personal/Golang_Practice/readFileUpdated.txt")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+
+	noOfEntries = 1
+	for scanner.Scan() {
+		noOfEntries++
+	}
+	return nil
+}
+
+
 // To hold all the pods read from file.
 // TODO: As of now, reads a maximum of 3000, need to change it to read from whole values.
 var podInfoList = make([]podInfo, 3000)
@@ -128,7 +147,7 @@ var timeList = make([]float64, 3000)
 // once from file and fill all the datastructures we need.
 func readFromFile() error {
 	// Replace it with os.getCwd() and append string.
-	file, err := os.Open("readFileUpdated.txt")
+	file, err := os.Open("/home/ravig/Projects/Personal/Golang_Practice/readFileUpdated.txt")
 	if err != nil {
 		return err
 	}
