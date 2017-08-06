@@ -194,7 +194,7 @@ func schedulePods(config *testConfig) {
 				}
 				// If yes, break this loop.
 				if allPodsScheduled {
-					fmt.Println(time.Since(start))
+					fmt.Printf("At: %f, PodsCreated: %d, TimeTaken: %v\n", timeNow, len(podsToCreate), time.Since(start))
 					break
 				}
 
