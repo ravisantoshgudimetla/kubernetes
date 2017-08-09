@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 	"fmt"
+	"sort"
 )
 
 
@@ -160,6 +161,7 @@ func schedulePods(config *testConfig) {
 	defer config.destroyFunc()
 	generateNodes(config)
 	cs := config.schedulerSupportFunctions.GetClient()
+	sort.Float64s(timeList)
 	for _, timeNow := range timeList {
 		// Checking if the value is not equal to 0.
 		if timeNow != float64(0) {
@@ -194,7 +196,7 @@ func schedulePods(config *testConfig) {
 				}
 				// If yes, break this loop.
 				if allPodsScheduled {
-					fmt.Printf("At: %f, PodsCreated: %d, TimeTaken: %v\n", timeNow, len(podsToCreate), time.Since(start))
+					fmt.Printf("At: %f, PodsCreated: %d, PodsDelete: %d, TimeTaken: %v\n", timeNow, len(podsToCreate), len(podsToDelete), time.Since(start))
 					break
 				}
 
