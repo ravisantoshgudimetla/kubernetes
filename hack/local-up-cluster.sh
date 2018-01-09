@@ -64,7 +64,7 @@ DNS_DOMAIN=${KUBE_DNS_NAME:-"cluster.local"}
 KUBECTL=${KUBECTL:-cluster/kubectl.sh}
 WAIT_FOR_URL_API_SERVER=${WAIT_FOR_URL_API_SERVER:-20}
 ENABLE_DAEMON=${ENABLE_DAEMON:-false}
-HOSTNAME_OVERRIDE=${HOSTNAME_OVERRIDE:-"127.0.0.1"}
+HOSTNAME_OVERRIDE=${HOSTNAME_OVERRIDE:-"172.17.0.1"}
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-""}
 CLOUD_CONFIG=${CLOUD_CONFIG:-""}
 FEATURE_GATES=${FEATURE_GATES:-"AllAlpha=false"}
@@ -218,14 +218,14 @@ API_SECURE_PORT=${API_SECURE_PORT:-6443}
 
 # WARNING: For DNS to work on most setups you should export API_HOST as the docker0 ip address,
 API_HOST=${API_HOST:-localhost}
-API_HOST_IP=${API_HOST_IP:-"127.0.0.1"}
+API_HOST_IP=${API_HOST_IP:-"172.17.0.1"}
 ADVERTISE_ADDRESS=${ADVERTISE_ADDRESS:-""}
 API_BIND_ADDR=${API_BIND_ADDR:-"0.0.0.0"}
 EXTERNAL_HOSTNAME=${EXTERNAL_HOSTNAME:-localhost}
 
-KUBELET_HOST=${KUBELET_HOST:-"127.0.0.1"}
+KUBELET_HOST=${KUBELET_HOST:-"172.17.0.1"}
 # By default only allow CORS for requests on localhost
-API_CORS_ALLOWED_ORIGINS=${API_CORS_ALLOWED_ORIGINS:-/127.0.0.1(:[0-9]+)?$,/localhost(:[0-9]+)?$}
+API_CORS_ALLOWED_ORIGINS=${API_CORS_ALLOWED_ORIGINS:-/172.17.0.1(:[0-9]+)?$,/localhost(:[0-9]+)?$}
 KUBELET_PORT=${KUBELET_PORT:-10250}
 LOG_LEVEL=${LOG_LEVEL:-3}
 # Use to increase verbosity on particular files, e.g. LOG_SPEC=token_controller*=5,other_controller*=4
@@ -485,9 +485,9 @@ function start_apiserver {
     fi
 
     # Let the API server pick a default address when API_HOST_IP
-    # is set to 127.0.0.1
+    # is set to 172.17.0.1
     advertise_address=""
-    if [[ "${API_HOST_IP}" != "127.0.0.1" ]]; then
+    if [[ "${API_HOST_IP}" != "172.17.0.1" ]]; then
         advertise_address="--advertise_address=${API_HOST_IP}"
     fi
     if [[ "${ADVERTISE_ADDRESS}" != "" ]] ; then
@@ -746,7 +746,7 @@ function start_kubelet {
         -i \
         --cidfile=$KUBELET_CIDFILE \
         k8s.gcr.io/kubelet \
-        /kubelet --v=${LOG_LEVEL} --containerized ${priv_arg}--chaos-chance="${CHAOS_CHANCE}" --pod-manifest-path="${POD_MANIFEST_PATH}" --hostname-override="${HOSTNAME_OVERRIDE}" --cloud-provider="${CLOUD_PROVIDER}" --cloud-config="${CLOUD_CONFIG}" \ --address="127.0.0.1" --kubeconfig "$CERT_DIR"/kubelet.kubeconfig --port="$KUBELET_PORT"  --enable-controller-attach-detach="${ENABLE_CONTROLLER_ATTACH_DETACH}" &> $KUBELET_LOG &
+        /kubelet --v=${LOG_LEVEL} --containerized ${priv_arg}--chaos-chance="${CHAOS_CHANCE}" --pod-manifest-path="${POD_MANIFEST_PATH}" --hostname-override="${HOSTNAME_OVERRIDE}" --cloud-provider="${CLOUD_PROVIDER}" --cloud-config="${CLOUD_CONFIG}" \ --address="172.17.0.1" --kubeconfig "$CERT_DIR"/kubelet.kubeconfig --port="$KUBELET_PORT"  --enable-controller-attach-detach="${ENABLE_CONTROLLER_ATTACH_DETACH}" &> $KUBELET_LOG &
     fi
 }
 
@@ -775,9 +775,11 @@ EOF
 
     SCHEDULER_LOG=${LOG_DIR}/kube-scheduler.log
     ${CONTROLPLANE_SUDO} "${GO_OUT}/hyperkube" scheduler \
-      --v=${LOG_LEVEL} \
+      --v=10 \
+      --use-legacy-policy-config=true \
       --kubeconfig "$CERT_DIR"/scheduler.kubeconfig \
       --feature-gates="${FEATURE_GATES}" \
+      --policy-config-file /home/ravig/test/scheduler.config \
       --master="https://${API_HOST}:${API_SECURE_PORT}" >"${SCHEDULER_LOG}" 2>&1 &
     SCHEDULER_PID=$!
 }
