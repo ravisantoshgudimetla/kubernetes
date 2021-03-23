@@ -2,7 +2,7 @@
 
 module k8s.io/sample-cli-plugin
 
-go 1.15
+go 1.16
 
 require (
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
