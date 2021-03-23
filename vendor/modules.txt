@@ -515,11 +515,7 @@ github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/protobuf/ptypes/wrappers
-# github.com/golangplus/bytes v0.0.0-20160111154220-45c989fe5450 => github.com/golangplus/bytes v0.0.0-20160111154220-45c989fe5450
-## explicit
 # github.com/golangplus/bytes => github.com/golangplus/bytes v0.0.0-20160111154220-45c989fe5450
-# github.com/golangplus/fmt v0.0.0-20150411045040-2a5d6d7d2995 => github.com/golangplus/fmt v0.0.0-20150411045040-2a5d6d7d2995
-## explicit
 # github.com/golangplus/fmt => github.com/golangplus/fmt v0.0.0-20150411045040-2a5d6d7d2995
 # github.com/golangplus/testing v0.0.0-20180327235837-af21d9c3145e => github.com/golangplus/testing v0.0.0-20180327235837-af21d9c3145e
 ## explicit
@@ -2507,9 +2503,9 @@ k8s.io/kube-aggregator/pkg/registry/apiservice/rest
 ## explicit
 # k8s.io/kube-controller-manager => ./staging/src/k8s.io/kube-controller-manager
 k8s.io/kube-controller-manager/config/v1alpha1
-# k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd => k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+# k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7 => k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 ## explicit
-# k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+# k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 k8s.io/kube-openapi/cmd/openapi-gen
 k8s.io/kube-openapi/cmd/openapi-gen/args
 k8s.io/kube-openapi/pkg/aggregator
