@@ -421,7 +421,7 @@ var _ = SIGDescribe("Daemon set [Serial]", func() {
 	framework.ConformanceIt("should rollback without unnecessary restarts", func() {
 		schedulableNodes, err := e2enode.GetReadySchedulableNodes(c)
 		framework.ExpectNoError(err)
-		gomega.Expect(len(schedulableNodes.Items)).To(gomega.BeNumerically(">", 1), "Conformance test suite needs a cluster with at least 2 nodes.")
+		//gomega.Expect(len(schedulableNodes.Items)).To(gomega.BeNumerically(">", 1), "Conformance test suite needs a cluster with at least 2 nodes.")
 		framework.Logf("Create a RollingUpdate DaemonSet")
 		label := map[string]string{daemonsetNameLabel: dsName}
 		ds := newDaemonSet(dsName, image, label)
@@ -479,6 +479,8 @@ var _ = SIGDescribe("Daemon set [Serial]", func() {
 		framework.ExpectNoError(err)
 
 		// After rollback is done, compare current pods with previous old pods during rollout, to make sure they're not restarted
+		// This wouldn't happen if there is single node in the cluster as existingPods slice would be empty because
+		// maxUnavailable has been set to 0.
 		pods = listDaemonPods(c, ns, label)
 		rollbackPods := map[string]bool{}
 		for _, pod := range pods.Items {
