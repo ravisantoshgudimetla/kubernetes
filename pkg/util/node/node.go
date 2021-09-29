@@ -354,3 +354,27 @@ func fixupPatchForNodeStatusAddresses(patchBytes []byte, addresses []v1.NodeAddr
 
 	return json.Marshal(patchMap)
 }
+
+func PatchNodeWithStatusAndLabels(c v1core.CoreV1Interface, nodeName string, oldNode *v1.Node, newNode *v1.Node) (*v1.Node, []byte, error) {
+	oldData, err := json.Marshal(oldNode)
+	if err != nil {
+		return nil, nil, err
+	}
+	newData, err := json.Marshal(newNode)
+	if err != nil {
+		return nil, nil, err
+	}
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, v1.Node{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create patch for node %q: %v", nodeName, err)
+	}
+	node, err := c.Nodes().Patch(context.TODO(), nodeName, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+	// Keep the status as is
+	node.Status = oldNode.Status
+	// Copy the new object metadata to get name and modified labels.
+	node.ObjectMeta = newNode.ObjectMeta
+	return node, patchBytes, nil
+}

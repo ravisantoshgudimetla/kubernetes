@@ -113,6 +113,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager"
 	"k8s.io/kubernetes/pkg/security/apparmor"
 	sysctlallowlist "k8s.io/kubernetes/pkg/security/podsecuritypolicy/sysctl"
+	nodeutil "k8s.io/kubernetes/pkg/util/node"
 	"k8s.io/kubernetes/pkg/util/oom"
 	"k8s.io/kubernetes/pkg/util/selinux"
 	"k8s.io/kubernetes/pkg/volume"
@@ -1468,6 +1469,9 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	go kl.volumeManager.Run(kl.sourcesReady, wait.NeverStop)
 
 	if kl.kubeClient != nil {
+		// Sync OS and Arch labels.
+		// The pod startup latency SLO is 5 sec
+		go wait.Until(kl.syncOSAndArchLabels, 10*time.Second, wait.NeverStop)
 		// Introduce some small jittering to ensure that over time the requests won't start
 		// accumulating at approximately the same time from the set of nodes due to priority and
 		// fairness effect.
@@ -2423,6 +2427,53 @@ func (kl *Kubelet) fastStatusUpdateOnce() {
 			kl.updateRuntimeUp()
 			kl.syncNodeStatus()
 			return
+		}
+	}
+}
+
+func (kl *Kubelet) syncOSAndArchLabelsOnce() (*v1.Node, error) {
+	node, err := kl.GetNode()
+	if err != nil {
+		return nil, fmt.Errorf("error getting node: %v", err)
+	}
+	newNode := node.DeepCopy()
+	areRequiredLabelsPresent := true
+	// Set the OS label if there is mismatch
+	osName, osLabelExists := newNode.Labels[v1.LabelOSStable]
+	if !osLabelExists || osName != sysruntime.GOOS {
+		if len(newNode.Labels) == 0 {
+			newNode.Labels = make(map[string]string)
+		}
+		newNode.Labels[v1.LabelOSStable] = sysruntime.GOOS
+		areRequiredLabelsPresent = false
+	}
+	// Set the arch if there is a mismatch
+	arch, archLabelExists := newNode.Labels[v1.LabelArchStable]
+	if !archLabelExists || arch != sysruntime.GOARCH {
+		if len(newNode.Labels) == 0 {
+			newNode.Labels = make(map[string]string)
+		}
+		newNode.Labels[v1.LabelArchStable] = sysruntime.GOARCH
+		areRequiredLabelsPresent = false
+	}
+	// Don't patch if the required labels are already present
+	if areRequiredLabelsPresent {
+		return node, nil
+	}
+	updatedNode, patchBytes, err := nodeutil.PatchNodeWithStatusAndLabels(kl.kubeClient.CoreV1(), node.Name, node, newNode)
+	if err != nil {
+		return nil, fmt.Errorf("error patching while updateing node labels: %v", err)
+	}
+	klog.V(6).InfoS("Patching successful", "patchBytes", patchBytes)
+	return updatedNode, nil
+}
+
+func (kl *Kubelet) syncOSAndArchLabels() {
+	for {
+		time.Sleep(100 * time.Millisecond)
+		if node, err := kl.syncOSAndArchLabelsOnce(); err != nil {
+			klog.ErrorS(err, "error syncing OS and arch labels", "nodeName", node.Name)
+			continue
 		}
 	}
 }
