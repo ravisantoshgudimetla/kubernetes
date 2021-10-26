@@ -18,7 +18,6 @@ package lifecycle
 
 import (
 	"fmt"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiserver/pkg/util/feature"
 	v1affinityhelper "k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
@@ -61,6 +60,10 @@ func NewPredicateAdmitHandler(getNodeAnyWayFunc getNodeAnyWayFuncType, admission
 }
 
 func (w *predicateAdmitHandler) Admit(attrs *PodAdmitAttributes) PodAdmitResult {
+	// getNodeAnyWayFunc should have ensured that the runtime.GOOS values match with node OS and Arch labels.
+	// Now, we need to reject pods, if the nodeSelector on the pod doesn't match the node labels.
+	// This check comes in handy when the pod's nodeName has been set directly by passing the scheduler.
+	// TODO: When we add OS field to pod spec, kubelet should reject the pods with mismatched OS as well.
 	node, err := w.getNodeAnyWayFunc()
 	if err != nil {
 		klog.ErrorS(err, "Cannot get Node info")
@@ -84,7 +87,6 @@ func (w *predicateAdmitHandler) Admit(attrs *PodAdmitAttributes) PodAdmitResult 
 			Message: message,
 		}
 	}
-
 	// Remove the requests of the extended resources that are missing in the
 	// node info. This is required to support cluster-level resources, which
 	// are extended resources unknown to nodes.
@@ -94,7 +96,6 @@ func (w *predicateAdmitHandler) Admit(attrs *PodAdmitAttributes) PodAdmitResult 
 	// not fail admission while it should. This issue will be addressed with
 	// the Resource Class API in the future.
 	podWithoutMissingExtendedResources := removeMissingExtendedResources(admitPod, nodeInfo)
-
 	reasons, err := GeneralPredicates(podWithoutMissingExtendedResources, nodeInfo)
 	fit := len(reasons) == 0 && err == nil
 	if err != nil {

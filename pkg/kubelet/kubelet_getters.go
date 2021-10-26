@@ -22,22 +22,22 @@ import (
 	"io/ioutil"
 	"net"
 	"path/filepath"
+	"runtime"
 
 	cadvisorapiv1 "github.com/google/cadvisor/info/v1"
 	cadvisorv2 "github.com/google/cadvisor/info/v2"
-	"k8s.io/klog/v2"
-	"k8s.io/mount-utils"
-	utilpath "k8s.io/utils/path"
-	utilstrings "k8s.io/utils/strings"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 	utilnode "k8s.io/kubernetes/pkg/util/node"
 	"k8s.io/kubernetes/pkg/volume/csi"
+	"k8s.io/mount-utils"
+	utilpath "k8s.io/utils/path"
+	utilstrings "k8s.io/utils/strings"
 )
 
 // getRootDir returns the full path to the directory under which kubelet can
@@ -240,12 +240,25 @@ func (kl *Kubelet) GetNode() (*v1.Node, error) {
 
 // getNodeAnyWay() must return a *v1.Node which is required by RunGeneralPredicates().
 // The *v1.Node is obtained as follows:
-// Return kubelet's nodeInfo for this node, except on error or if in standalone mode,
+// Return kubelet's nodeInfo for this node. It also checks if the OS and Arch labels are mismatched, if yes
+// they're updated and the new node object with modified values is returned, if not the object is returned as is.
+// except on error or if in standalone mode,
 // in which case return a manufactured nodeInfo representing a node with no pods,
 // zero capacity, and the default labels.
 func (kl *Kubelet) getNodeAnyWay() (*v1.Node, error) {
 	if kl.kubeClient != nil {
 		if n, err := kl.nodeLister.Get(string(kl.nodeName)); err == nil {
+			// We assume that the node labels match the host OS and arch but in order to avoid situations
+			// where the OS label was modified and kubelet has not synced the labels yet update it once here.
+			// This method is called by PredicateAdmitHandler.
+			if runtime.GOOS != n.Labels[v1.LabelOSStable] || runtime.GOARCH != n.Labels[v1.LabelArchStable] {
+				node, err := kl.syncOSAndArchLabelsOnce()
+				if err != nil {
+					return nil, err
+				}
+				// Get the updated node object.
+				n = node.DeepCopy()
+			}
 			return n, nil
 		}
 	}
