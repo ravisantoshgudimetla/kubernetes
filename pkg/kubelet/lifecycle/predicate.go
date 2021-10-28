@@ -29,6 +29,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeports"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
+	"runtime"
 )
 
 type getNodeAnyWayFuncType func() (*v1.Node, error)
@@ -154,9 +155,44 @@ func (w *predicateAdmitHandler) Admit(attrs *PodAdmitAttributes) PodAdmitResult 
 			Message: message,
 		}
 	}
+	if rejectPodAdmissionBasedOnOSSelector(admitPod, node) {
+		return PodAdmitResult{
+			Admit:   false,
+			Reason:  "PodOSSelectorNodeLabelMisMatch",
+			Message: "Failed to admit pod as the `kubernetes.io/os` label doesn't match node label",
+		}
+	}
 	return PodAdmitResult{
 		Admit: true,
 	}
+}
+
+// rejectPodAdmissionBasedOnOSSelector rejects pod if it's nodeSelector doesn't match
+// We expect the kubelet status reconcile which happens every 10sec to update the node labels if there is a mismatch.
+func rejectPodAdmissionBasedOnOSSelector(pod *v1.Pod, node *v1.Node) bool {
+	labels := node.Labels
+	osName, osLabelExists := labels[v1.LabelOSStable]
+	if !osLabelExists || osName != runtime.GOOS {
+		if len(labels) == 0 {
+			labels = make(map[string]string)
+		}
+		labels[v1.LabelOSStable] = runtime.GOOS
+	}
+	//archName, archLabelExists := labels[v1.LabelArchStable]
+	//if !archLabelExists || archName != runtime.GOARCH {
+	//	if len(labels) == 0 {
+	//		labels = make(map[string]string)
+	//	}
+	//	labels[v1.LabelArchStable] = runtime.GOARCH
+	//}
+	podLabelSelector, podOSLabelExists := pod.Labels[v1.LabelOSStable]
+	if !podOSLabelExists {
+		// If the labelselector didn't exist, let's keep the current behavior as is
+		return false
+	} else if podOSLabelExists && podLabelSelector != osName {
+		return true
+	}
+	return false
 }
 
 func removeMissingExtendedResources(pod *v1.Pod, nodeInfo *schedulerframework.NodeInfo) *v1.Pod {

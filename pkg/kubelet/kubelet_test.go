@@ -855,54 +855,29 @@ func TestHandleNodeSelector(t *testing.T) {
 // Tests that we handle not matching labels selector correctly by setting the failed status in status map.
 func TestHandleNodeSelectorBasedOnOS(t *testing.T) {
 	tests := []struct {
-		name             string
-		nodeLabels       map[string]string
-		podSelector      map[string]string
-		podStatus        v1.PodPhase
-		isPatchingNeeded bool
+		name        string
+		nodeLabels  map[string]string
+		podSelector map[string]string
+		podStatus   v1.PodPhase
 	}{
 		{
-			name:             "wrong OS label, label corrected, admission denied",
-			nodeLabels:       map[string]string{v1.LabelOSStable: "dummyOS"},
-			podSelector:      map[string]string{v1.LabelOSStable: "dummyOS"},
-			podStatus:        v1.PodFailed,
-			isPatchingNeeded: true,
+			name:        "correct OS label, wrong pod selector, admission denied",
+			nodeLabels:  map[string]string{v1.LabelOSStable: goruntime.GOOS, v1.LabelArchStable: goruntime.GOARCH},
+			podSelector: map[string]string{v1.LabelOSStable: "dummyOS"},
+			podStatus:   v1.PodFailed,
 		},
 		{
-			name:             "correct OS label, wrong pod selector, admission denied",
-			nodeLabels:       map[string]string{v1.LabelOSStable: goruntime.GOOS, v1.LabelArchStable: goruntime.GOARCH},
-			podSelector:      map[string]string{v1.LabelOSStable: "dummyOS"},
-			podStatus:        v1.PodFailed,
-			isPatchingNeeded: false,
-		},
-		{
-			name:             "correct OS label, correct pod selector, admission denied",
-			nodeLabels:       map[string]string{v1.LabelOSStable: goruntime.GOOS, v1.LabelArchStable: goruntime.GOARCH},
-			podSelector:      map[string]string{v1.LabelOSStable: goruntime.GOOS},
-			podStatus:        v1.PodPending,
-			isPatchingNeeded: false,
-		},
-		{
-			name:             "partially correct OS label, wrong pod selector, admission denied",
-			nodeLabels:       map[string]string{v1.LabelOSStable: "dummyOS", v1.LabelArchStable: goruntime.GOARCH},
-			podSelector:      map[string]string{v1.LabelOSStable: "dummyOS"},
-			podStatus:        v1.PodFailed,
-			isPatchingNeeded: true,
-		},
-		{
-			name:             "partially correct OS label, wrong pod selector, admission denied",
-			nodeLabels:       map[string]string{v1.LabelOSStable: "dummyOS", v1.LabelArchStable: goruntime.GOARCH},
-			podSelector:      map[string]string{v1.LabelOSStable: "dummyOS"},
-			podStatus:        v1.PodFailed,
-			isPatchingNeeded: true,
+			name:        "correct OS label, correct pod selector, admission denied",
+			nodeLabels:  map[string]string{v1.LabelOSStable: goruntime.GOOS, v1.LabelArchStable: goruntime.GOARCH},
+			podSelector: map[string]string{v1.LabelOSStable: goruntime.GOOS},
+			podStatus:   v1.PodPending,
 		},
 		{
 			// Expect no patching to happen, label B should be preserved and can be used for nodeAffinity.
-			name:             "new node label, correct pod selector, admitted",
-			nodeLabels:       map[string]string{v1.LabelOSStable: goruntime.GOOS, v1.LabelArchStable: goruntime.GOARCH, "key": "B"},
-			podSelector:      map[string]string{"key": "B"},
-			podStatus:        v1.PodPending,
-			isPatchingNeeded: false,
+			name:        "new node label, correct pod selector, admitted",
+			nodeLabels:  map[string]string{v1.LabelOSStable: goruntime.GOOS, v1.LabelArchStable: goruntime.GOARCH, "key": "B"},
+			podSelector: map[string]string{"key": "B"},
+			podStatus:   v1.PodPending,
 		},
 	}
 	for _, test := range tests {
@@ -910,7 +885,6 @@ func TestHandleNodeSelectorBasedOnOS(t *testing.T) {
 			testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
 			defer testKubelet.Cleanup()
 			kl := testKubelet.kubelet
-			kubeClient := testKubelet.fakeKubeClient
 			nodes := []*v1.Node{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname, Labels: test.nodeLabels},
@@ -937,22 +911,6 @@ func TestHandleNodeSelectorBasedOnOS(t *testing.T) {
 
 			kl.HandlePodAdditions([]*v1.Pod{pod})
 
-			if test.isPatchingNeeded {
-				actions := kubeClient.Actions()
-				if len(actions) == 0 {
-					t.Errorf("expected patch action but nothing")
-				}
-				var savedNode *v1.Node
-				action := actions[0]
-				if action.GetVerb() == "patch" {
-					patchAction := action.(core.PatchActionImpl)
-					var err error
-					savedNode, err = applyNodePatch(nodes[0], patchAction.GetPatch())
-					if err != nil {
-						t.Errorf("patching failed for node: %v", savedNode.Name)
-					}
-				}
-			}
 			// Check pod status stored in the status map.
 			checkPodStatus(t, kl, pod, test.podStatus)
 		})
@@ -2430,7 +2388,7 @@ func TestSyncLabels(t *testing.T) {
 			test.existingNode.Name = string(kl.nodeName)
 
 			kl.nodeLister = testNodeLister{nodes: []*v1.Node{test.existingNode}}
-			go func() { kl.syncOSAndArchLabels() }()
+			go func() { kl.syncNodeStatus() }()
 
 			err := retryWithExponentialBackOff(
 				100*time.Millisecond,

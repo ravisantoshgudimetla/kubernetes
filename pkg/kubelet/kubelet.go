@@ -1469,9 +1469,6 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	go kl.volumeManager.Run(kl.sourcesReady, wait.NeverStop)
 
 	if kl.kubeClient != nil {
-		// Sync OS and Arch labels.
-		// The pod startup latency SLO is 5 sec
-		go wait.Until(kl.syncOSAndArchLabels, 10*time.Second, wait.NeverStop)
 		// Introduce some small jittering to ensure that over time the requests won't start
 		// accumulating at approximately the same time from the set of nodes due to priority and
 		// fairness effect.
@@ -2466,16 +2463,6 @@ func (kl *Kubelet) syncOSAndArchLabelsOnce() (*v1.Node, error) {
 	}
 	klog.V(6).InfoS("Patching successful", "patchBytes", patchBytes)
 	return updatedNode, nil
-}
-
-func (kl *Kubelet) syncOSAndArchLabels() {
-	for {
-		time.Sleep(100 * time.Millisecond)
-		if node, err := kl.syncOSAndArchLabelsOnce(); err != nil {
-			klog.ErrorS(err, "error syncing OS and arch labels", "nodeName", node.Name)
-			continue
-		}
-	}
 }
 
 // isSyncPodWorthy filters out events that are not worthy of pod syncing
