@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/discovery"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -52,7 +53,9 @@ import (
 	pdbhelper "k8s.io/component-helpers/apps/poddisruptionbudget"
 	"k8s.io/klog/v2"
 	apipod "k8s.io/kubernetes/pkg/api/v1/pod"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/controller"
+	kubefeatures "k8s.io/kubernetes/pkg/features"
 	utilpod "k8s.io/kubernetes/pkg/util/pod"
 	"k8s.io/utils/clock"
 )
@@ -709,7 +712,7 @@ func (dc *DisruptionController) trySync(ctx context.Context, pdb *policy.PodDisr
 
 	currentTime := dc.clock.Now()
 	disruptedPods, recheckTime := dc.buildDisruptedPodMap(pods, pdb, currentTime)
-	currentHealthy := countHealthyPods(pods, disruptedPods, currentTime)
+	currentHealthy := countHealthyPods(pods, pdb, disruptedPods, currentTime)
 	err = dc.updatePdbStatus(ctx, pdb, currentHealthy, desiredHealthy, expectedCount, disruptedPods)
 
 	if err == nil && recheckTime != nil {
@@ -869,7 +872,9 @@ func (dc *DisruptionController) getExpectedScale(ctx context.Context, pdb *polic
 	return
 }
 
-func countHealthyPods(pods []*v1.Pod, disruptedPods map[string]metav1.Time, currentTime time.Time) (currentHealthy int32) {
+func countHealthyPods(pods []*v1.Pod, pdb *policy.PodDisruptionBudget, disruptedPods map[string]metav1.Time, currentTime time.Time) (currentHealthy int32) {
+	podHealthy := podHealthyFunc(pdb)
+
 	for _, pod := range pods {
 		// Pod is being deleted.
 		if pod.DeletionTimestamp != nil {
@@ -879,12 +884,26 @@ func countHealthyPods(pods []*v1.Pod, disruptedPods map[string]metav1.Time, curr
 		if disruptionTime, found := disruptedPods[pod.Name]; found && disruptionTime.Time.Add(DeletionTimeout).After(currentTime) {
 			continue
 		}
-		if apipod.IsPodReady(pod) {
+		if podHealthy(pod) {
 			currentHealthy++
 		}
 	}
 
 	return
+}
+
+func podHealthyFunc(pdb *policy.PodDisruptionBudget) func(*v1.Pod) bool {
+	if !utilfeature.DefaultFeatureGate.Enabled(kubefeatures.PDBPodHealthyPolicy) {
+		return podutil.IsPodReady
+	}
+	podHealthyPolicy := pdb.Spec.PodHealthyPolicy
+	var podHealthy func(*v1.Pod) bool
+	if podHealthyPolicy == "" || podHealthyPolicy == policy.PodReady {
+		podHealthy = podutil.IsPodReady
+	} else {
+		podHealthy = podutil.IsPodRunning
+	}
+	return podHealthy
 }
 
 // Builds new PodDisruption map, possibly removing items that refer to non-existing, already deleted

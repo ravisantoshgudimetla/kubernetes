@@ -787,6 +787,13 @@ const (
 	// instead of changing each file on the volumes recursively.
 	// Initial implementation focused on ReadWriteOncePod volumes.
 	SELinuxMountReadWriteOncePod featuregate.Feature = "SELinuxMountReadWriteOncePod"
+
+	// owner: @mortent
+	// kep: http://kep.k8s.io/3018
+	// alpha: v1.26
+	//
+	// Enables PodHealthyPolicy for PodDisruptionBudgets
+	PDBPodHealthyPolicy featuregate.Feature = "PDBPodHealthyPolicy"
 )
 
 func init() {
@@ -1007,6 +1014,8 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 	NodeInclusionPolicyInPodTopologySpread: {Default: false, PreRelease: featuregate.Alpha},
 
 	SELinuxMountReadWriteOncePod: {Default: false, PreRelease: featuregate.Alpha},
+
+	PDBPodHealthyPolicy: {Default: false, PreRelease: featuregate.Alpha},
 
 	// inherited features from generic apiserver, relisted here to get a conflict if it is changed
 	// unintentionally on either side:
